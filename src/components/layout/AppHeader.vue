@@ -13,7 +13,7 @@
       <!-- Mini terminal status -->
       <div class="status-chip">
         <span class="status-dot online"></span>
-        <span class="chip-text">All systems online</span>
+        <span class="chip-text">所有系统运行正常</span>
       </div>
 
       <div class="divider"></div>

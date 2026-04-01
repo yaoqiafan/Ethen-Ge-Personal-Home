@@ -20,7 +20,7 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'dashboard',
         component: DashboardView,
-        meta: { title: 'Dashboard', titleCN: '主控台' },
+        meta: { title: '控制台', titleCN: '主控台' },
       },
       {
         path: 'framework',
@@ -38,7 +38,7 @@ const routes: RouteRecordRaw[] = [
         path: 'garage',
         name: 'garage',
         component: GarageView,
-        meta: { title: 'Digital Garage', titleCN: '数字车库' },
+        meta: { title: '数字车库', titleCN: 'Digital Garage' },
       },
     ],
   },

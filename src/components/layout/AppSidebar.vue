@@ -11,7 +11,7 @@
 
     <!-- Navigation -->
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Navigation</div>
+      <div class="nav-section-label">导航</div>
       <RouterLink
         v-for="item in navItems"
         :key="item.id"
@@ -35,7 +35,7 @@
     <div class="sidebar-footer">
       <div class="footer-row">
         <span class="status-dot online"></span>
-        <span class="footer-text">System Online</span>
+        <span class="footer-text">系统运行中</span>
       </div>
       <div class="footer-row mt-1">
         <span class="footer-ver">v0.2.0</span>
@@ -57,11 +57,11 @@ let timer: ReturnType<typeof setInterval> | null = null
 const navItems: NavItem[] = [
   {
     id: 'dashboard',
-    label: 'Dashboard',
+    label: '控制台',
     labelCN: '主控台',
     path: '/dashboard',
     icon: '⊞',
-    description: 'Personal dashboard and overview',
+    description: '个人仪表盘与概览',
   },
   {
     id: 'framework',
