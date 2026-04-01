@@ -19,7 +19,7 @@
         <div class="term-dot red"></div>
         <div class="term-dot yellow"></div>
         <div class="term-dot green"></div>
-        <span class="term-title">boot — ethen-ge-os</span>
+        <span class="term-title">启动 — ethen-ge-os</span>
         <span class="term-time">{{ currentTime }}</span>
       </div>
 
@@ -52,7 +52,7 @@
 
         <!-- Progress bar line -->
         <div v-if="showProgressBar" class="progress-line animate-fade-in">
-          <span class="text-[#7d8590] text-xs mr-3">Loading kernel</span>
+          <span class="text-[#7d8590] text-xs mr-3">内核加载中</span>
           <span class="prog-track">
             <span class="prog-fill" :style="{ width: `${bootProgress}%` }"></span>
           </span>
@@ -82,7 +82,7 @@
         <Transition name="fade-up">
           <div v-if="phase === 'prompt'" class="enter-prompt">
             <span class="prompt-key animate-blink">[ENTER]</span>
-            <span class="prompt-hint">or click anywhere to enter the system</span>
+            <span class="prompt-hint">或点击任意处进入系统</span>
             <span class="prompt-arrow animate-blink">›</span>
           </div>
         </Transition>
@@ -121,18 +121,18 @@ const asciiArt = `
 const bootScript: BootLine[] = [
   { text: 'GE-BIOS v3.14 © 2024 Ethen-Ge Systems, Inc.', type: 'info', delay: 0 },
   { text: '', type: 'blank', delay: 80 },
-  { text: 'CPU: Industrial Logic Processor × 8 cores @ 3.6 GHz', type: 'info', delay: 120 },
-  { text: 'RAM: 64 GB DDR5-6400 — ECC OK', type: 'info', delay: 90 },
-  { text: 'DISK: NVMe Gen4 2TB — SMART OK', type: 'info', delay: 80 },
+  { text: 'CPU: 工业逻辑处理器 × 8 核 @ 3.6 GHz', type: 'info', delay: 120 },
+  { text: 'RAM: 64 GB DDR5-6400 — ECC 校验通过', type: 'info', delay: 90 },
+  { text: 'DISK: NVMe Gen4 2TB — SMART 自检通过', type: 'info', delay: 80 },
   { text: '', type: 'blank', delay: 60 },
-  { text: 'Mounting root filesystem...', type: 'ok', delay: 150 },
-  { text: 'Starting network manager...', type: 'ok', delay: 130 },
-  { text: 'Loading personality modules...', type: 'ok', delay: 180 },
-  { text: 'Initializing C# runtime (.NET 8)...', type: 'ok', delay: 140 },
-  { text: 'Starting Prism IoC container...', type: 'ok', delay: 120 },
-  { text: 'Connecting to AI inference cluster...', type: 'ok', delay: 200 },
-  { text: 'Mounting H2 drive subsystem...', type: 'warn', delay: 160 },
-  { text: '  → target not yet mounted (see: cd garage)', type: 'blank', delay: 80 },
+  { text: '挂载根文件系统...', type: 'ok', delay: 150 },
+  { text: '启动网络管理器...', type: 'ok', delay: 130 },
+  { text: '加载人格模块...', type: 'ok', delay: 180 },
+  { text: '初始化 C# 运行时 (.NET 8)...', type: 'ok', delay: 140 },
+  { text: '启动 Prism IoC 容器...', type: 'ok', delay: 120 },
+  { text: '连接 AI 推理集群...', type: 'ok', delay: 200 },
+  { text: '挂载 H2 驱动子系统...', type: 'warn', delay: 160 },
+  { text: '  → 目标尚未挂载 (参见: cd garage)', type: 'blank', delay: 80 },
   { text: '', type: 'blank', delay: 100 },
 ]
 
@@ -153,7 +153,7 @@ async function runBootSequence() {
   await sleep(200)
   showProgressBar.value = false
 
-  visibleLines.value.push({ text: 'Booting ETHEN-OS v1.0.0...', type: 'ok', delay: 0 })
+  visibleLines.value.push({ text: '正在启动 ETHEN-OS v1.0.0...', type: 'ok', delay: 0 })
   visibleLines.value.push({ text: '', type: 'blank', delay: 0 })
   scrollToBottom()
 

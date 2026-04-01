@@ -9,7 +9,7 @@
       <div class="cs-desc">数字车库 · 机械爱好者展厅 · 即将上线</div>
       <div class="cs-coming">
         <span class="cs-dot red"></span>
-        Visual showcase & H2 progress tracker — coming soon
+        视觉展厅 & H2 提车进度追踪 — 即将上线
       </div>
     </div>
   </div>

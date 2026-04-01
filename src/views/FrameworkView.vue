@@ -6,7 +6,7 @@
       <div class="cs-desc">工业自动化软件框架 · 文档与展示中心</div>
       <div class="cs-coming">
         <span class="cs-dot"></span>
-        Documentation & showcase coming soon
+        文档与项目展示，即将上线
       </div>
       <div class="cs-tags">
         <span class="tag">C#</span>

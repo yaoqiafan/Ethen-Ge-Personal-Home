@@ -2,7 +2,7 @@
   <div class="card fw-card">
     <div class="card-header">
       <span class="header-dot"></span>
-      Module A — Open Source
+      模块 A — 开源项目
     </div>
 
     <div class="fw-title-row">
@@ -16,7 +16,7 @@
     <!-- Progress -->
     <div class="fw-progress-section">
       <div class="progress-label-row">
-        <span class="label-text">Overall progress</span>
+        <span class="label-text">整体进度</span>
         <span class="label-pct">{{ project.progress }}%</span>
       </div>
       <div class="progress-track">
@@ -47,7 +47,7 @@
         <span class="tag tag-yellow">MVVM</span>
       </div>
       <RouterLink to="/framework" class="btn-primary">
-        View Docs →
+        查看文档 →
       </RouterLink>
     </div>
   </div>
@@ -59,12 +59,12 @@ import { RouterLink } from 'vue-router'
 const project = {
   progress: 35,
   features: [
-    { text: 'Core IoC / DI Container', done: true },
-    { text: 'Module system (Prism-style)', done: true },
-    { text: 'Event Aggregator', done: true },
-    { text: 'Region Manager & Navigation', done: false },
-    { text: 'Hardware abstraction layer', done: false },
-    { text: 'Plugin hot-reload support', done: false },
+    { text: '核心 IoC / DI 容器', done: true },
+    { text: '模块系统（Prism 风格）', done: true },
+    { text: '事件聚合器', done: true },
+    { text: '区域管理器 & 导航', done: false },
+    { text: '硬件抽象层', done: false },
+    { text: '插件热重载支持', done: false },
   ],
 }
 </script>

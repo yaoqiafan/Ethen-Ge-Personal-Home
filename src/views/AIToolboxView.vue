@@ -6,7 +6,7 @@
       <div class="cs-desc">多模型 AI 对话工具箱 · 正在组件化中</div>
       <div class="cs-coming">
         <span class="cs-dot cyan"></span>
-        Multi-model chat interface — coming soon
+        多模型对话界面 — 即将上线
       </div>
       <div class="cs-models">
         <div v-for="m in models" :key="m" class="cs-model">{{ m }}</div>
