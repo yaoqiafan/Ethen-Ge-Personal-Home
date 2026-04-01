@@ -2,11 +2,11 @@
   <div class="card ai-card">
     <div class="card-header">
       <span class="header-dot cyan"></span>
-      Module B — AI Toolbox
+      模块 B — AI 百宝箱
     </div>
 
-    <div class="ai-title">AI Models</div>
-    <div class="ai-subtitle">{{ onlineCount }}/{{ models.length }} online</div>
+    <div class="ai-title">AI 模型</div>
+    <div class="ai-subtitle">{{ onlineCount }}/{{ models.length }} 在线</div>
 
     <!-- Model list -->
     <div class="model-list">
@@ -30,7 +30,7 @@
     <div class="ai-footer">
       <RouterLink to="/ai-toolbox" class="btn-open">
         <span class="btn-icon">✦</span>
-        Open AI Toolbox
+        打开 AI 百宝箱
       </RouterLink>
     </div>
   </div>

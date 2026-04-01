@@ -2,7 +2,7 @@
   <div class="card garage-card">
     <div class="card-header">
       <span class="header-dot red"></span>
-      Module C — Digital Garage
+      模块 C — 数字车库
     </div>
 
     <!-- Bike header -->
@@ -32,7 +32,7 @@
     <!-- Progress section -->
     <div class="h2-progress">
       <div class="progress-header">
-        <div class="progress-title">H2 Acquisition Fund</div>
+        <div class="progress-title">H2 提车基金</div>
         <div class="progress-pct-badge">{{ progressPct }}%</div>
       </div>
 
@@ -57,15 +57,15 @@
       <!-- Amount display -->
       <div class="amount-row">
         <div class="amount-current">
-          <span class="amount-label">Current</span>
+          <span class="amount-label">已攒</span>
           <span class="amount-value green">¥{{ formatAmount(h2.current) }}</span>
         </div>
         <div class="amount-gap">
-          <span class="amount-label">Remaining</span>
+          <span class="amount-label">还差</span>
           <span class="amount-value yellow">¥{{ formatAmount(h2.target - h2.current) }}</span>
         </div>
         <div class="amount-target">
-          <span class="amount-label">Target</span>
+          <span class="amount-label">目标</span>
           <span class="amount-value muted">¥{{ formatAmount(h2.target) }}</span>
         </div>
       </div>
@@ -87,11 +87,11 @@
     <!-- Footer -->
     <div class="garage-footer">
       <div class="eta-row">
-        <span class="eta-label">Est. acquisition</span>
+        <span class="eta-label">预计提车</span>
         <span class="eta-date">{{ h2.targetDate }}</span>
       </div>
       <RouterLink to="/garage" class="btn-garage">
-        Enter Garage →
+        进入车库 →
       </RouterLink>
     </div>
   </div>

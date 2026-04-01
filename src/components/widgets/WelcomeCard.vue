@@ -6,11 +6,11 @@
       <div class="wc-info">
         <div class="wc-name">葛大大 <span class="wc-name-en">/ Ethen Ge</span></div>
         <div class="wc-title">
-          <span class="wc-role">Industrial Software Engineer</span>
+          <span class="wc-role">工业软件工程师</span>
           <span class="wc-sep">·</span>
           <span class="wc-status">
             <span class="status-dot online"></span>
-            Available for collaboration
+            开放合作中
           </span>
         </div>
         <!-- Typewriter tagline -->
@@ -39,17 +39,17 @@ import { sleep } from '@/composables/useTypewriter'
 const typedText = ref('')
 
 const taglines = [
-  'Building PF.AutoFramework — C# + .NET 8 + Prism',
-  'Saving up for Kawasaki H2...',
-  'If it compiles, ship it.',
+  '正在构建 PF.AutoFramework — C# + .NET 8 + Prism',
+  '攒钱买 Kawasaki H2...',
+  '能编译，就发布。',
   '万行代码终入框架，千山万水终达 H2',
 ]
 
 const stats = [
-  { value: '5+', label: 'Yrs C# Dev', color: '#39d353' },
-  { value: '100k+', label: 'Lines of Code', color: '#58a6ff' },
-  { value: '3', label: 'AI Models Used', color: '#bc8cff' },
-  { value: '∞', label: 'LoC to write', color: '#e3b341' },
+  { value: '5+', label: 'C# 年限', color: '#39d353' },
+  { value: '100k+', label: '代码行数', color: '#58a6ff' },
+  { value: '3', label: 'AI 模型接入', color: '#bc8cff' },
+  { value: '∞', label: '待写代码行', color: '#e3b341' },
 ]
 
 async function runTypewriter() {
