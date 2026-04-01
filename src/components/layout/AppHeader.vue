@@ -1,6 +1,17 @@
 <template>
   <header class="app-header">
-    <!-- Breadcrumb / Page title -->
+    <!-- 汉堡菜单（仅移动端显示） -->
+    <button
+      class="hamburger-btn"
+      title="打开菜单"
+      @click="$emit('open-mobile-menu')"
+    >
+      <span class="ham-line"></span>
+      <span class="ham-line"></span>
+      <span class="ham-line"></span>
+    </button>
+
+    <!-- 面包屑 / 页面标题 -->
     <div class="header-left">
       <span class="header-path">~/</span>
       <span class="header-separator">›</span>
@@ -8,9 +19,8 @@
       <span v-if="routeMeta.titleCN" class="header-page-cn">{{ routeMeta.titleCN }}</span>
     </div>
 
-    <!-- Right status bar -->
+    <!-- 右侧状态栏 -->
     <div class="header-right">
-      <!-- Mini terminal status -->
       <div class="status-chip">
         <span class="status-dot online"></span>
         <span class="chip-text">所有系统运行正常</span>
@@ -18,7 +28,6 @@
 
       <div class="divider"></div>
 
-      <!-- Stack badges -->
       <div class="stack-chips">
         <span class="stack-chip">C#</span>
         <span class="stack-chip cyan">.NET 8</span>
@@ -36,12 +45,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 
+defineProps<{ isCollapsed: boolean }>()
+defineEmits<{ (e: 'open-mobile-menu'): void }>()
+
 const route = useRoute()
 const currentTime = ref('')
 let timer: ReturnType<typeof setInterval> | null = null
 
 const routeMeta = computed(() => ({
-  title: (route.meta?.title as string) ?? 'Dashboard',
+  title: (route.meta?.title as string) ?? '控制台',
   titleCN: (route.meta?.titleCN as string) ?? '',
 }))
 
@@ -68,20 +80,58 @@ onUnmounted(() => {
 .app-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 1.5rem;
+  padding: 0 1.25rem;
   height: 48px;
   background: #0d1117;
   border-bottom: 1px solid #21262d;
   flex-shrink: 0;
-  gap: 12px;
+  gap: 10px;
 }
 
+/* ── 汉堡按钮（仅移动端） ────────────────── */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background: transparent;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease;
+}
+.hamburger-btn:hover {
+  border-color: rgba(57, 211, 83, 0.4);
+}
+.ham-line {
+  display: block;
+  width: 100%;
+  height: 1.5px;
+  background: #7d8590;
+  border-radius: 1px;
+  transition: background 0.2s ease;
+}
+.hamburger-btn:hover .ham-line {
+  background: #39d353;
+}
+
+@media (max-width: 767px) {
+  .hamburger-btn {
+    display: flex;
+  }
+}
+
+/* ── 面包屑 ─────────────────────────────── */
 .header-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 13px;
+  flex: 1;
   min-width: 0;
 }
 .header-path {
@@ -106,6 +156,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+/* ── 右侧状态 ───────────────────────────── */
 .header-right {
   display: flex;
   align-items: center;
@@ -174,6 +225,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
-  .stack-chips, .divider, .status-chip { display: none; }
+  .stack-chips, .status-chip { display: none; }
+  .divider { display: none; }
 }
 </style>
