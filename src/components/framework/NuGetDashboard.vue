@@ -21,18 +21,11 @@
       </div>
     </div>
 
-    <!-- ── 错误态 ─────────────────────────── -->
-    <div v-if="error && !packages.length" class="error-panel">
-      <div class="err-icon">⚡</div>
-      <div class="err-title">无法连接到 BaGet 私服</div>
-      <div class="err-msg">{{ error }}</div>
-      <div class="err-hint">
-        开发模式：确认 Vite proxy 已配置 <code>/api/nuget</code><br />
-        生产部署：配置 Nginx 将 <code>/api/nuget</code> 反向代理至私服
-      </div>
-      <button class="btn-demo" @click="loadDemo">
-        ⊕ 加载演示数据
-      </button>
+    <!-- ── 错误横幅（已自动降级到演示数据）─── -->
+    <div v-if="error && packages.length" class="error-banner">
+      <span class="eb-icon">⚡</span>
+      <span class="eb-text">私服不可达，已自动加载演示数据 —— {{ error }}</span>
+      <button class="eb-retry" @click="fetchPackages">重试连接</button>
     </div>
 
     <!-- ── 加载骨架 ────────────────────────── -->
@@ -194,15 +187,15 @@ const copiedKey = ref('')
 // ── 状态 ────────────────────────────────────
 const connClass = computed(() => {
   if (loading.value) return 'connecting'
-  if (error.value && !packages.value.length) return 'offline'
   if (isDemo.value) return 'demo'
+  if (error.value) return 'offline'
   return 'online'
 })
 
 const connLabel = computed(() => {
   if (loading.value) return '连接中...'
   if (isDemo.value) return '演示模式'
-  if (error.value && !packages.value.length) return '连接失败'
+  if (error.value) return '连接失败'
   return '已连接'
 })
 
@@ -250,6 +243,8 @@ async function fetchPackages() {
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
     emit('status-change', false)
+    // 自动降级：连接失败时加载演示数据，无需手动操作
+    loadDemo()
   } finally {
     loading.value = false
   }
@@ -258,7 +253,6 @@ async function fetchPackages() {
 function loadDemo() {
   packages.value = DEMO_PACKAGES
   isDemo.value = true
-  error.value = ''
   lastRefresh.value = new Date()
 }
 
@@ -389,28 +383,26 @@ onMounted(fetchPackages)
 .refresh-icon.spin { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── 错误态 ──────────────────────────────── */
-.error-panel {
-  text-align: center;
-  padding: 2.5rem 1.5rem;
+/* ── 错误横幅 ─────────────────────────────── */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: rgba(248,81,73,.05);
   border: 1px solid rgba(248,81,73,.2);
-  border-radius: 8px;
-  background: rgba(248,81,73,.03);
+  border-radius: 6px;
+  font-size: 11px;
+  flex-wrap: wrap;
 }
-.err-icon  { font-size: 32px; color: #f85149; margin-bottom: 8px; }
-.err-title { font-size: 15px; font-weight: 700; color: #e6edf3; margin-bottom: 6px; }
-.err-msg   { font-size: 12px; color: #f85149; margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; }
-.err-hint  { font-size: 11px; color: #7d8590; margin-bottom: 16px; line-height: 1.7; }
-.err-hint code {
-  background: #21262d; padding: 1px 5px; border-radius: 3px; font-size: 11px;
+.eb-icon { color: #f85149; flex-shrink: 0; }
+.eb-text { color: #7d8590; flex: 1; font-family: 'JetBrains Mono', monospace; min-width: 0; word-break: break-all; }
+.eb-retry {
+  font-size: 10px; padding: 2px 10px; border-radius: 4px; cursor: pointer;
+  background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.25);
+  color: #f85149; font-family: 'JetBrains Mono', monospace; transition: all .2s; white-space: nowrap;
 }
-.btn-demo {
-  font-size: 12px; padding: 6px 16px;
-  background: rgba(227,179,65,.1); border: 1px solid rgba(227,179,65,.3);
-  color: #e3b341; border-radius: 5px; cursor: pointer;
-  font-family: 'JetBrains Mono', monospace; transition: all .2s;
-}
-.btn-demo:hover { background: rgba(227,179,65,.2); }
+.eb-retry:hover { background: rgba(248,81,73,.16); }
 
 /* ── 骨架屏 ──────────────────────────────── */
 .skeleton { height: 72px; animation: shimmer 1.5s ease-in-out infinite; }
