@@ -21,15 +21,15 @@
       </div>
     </div>
 
-    <!-- ── 错误横幅（已自动降级到演示数据）─── -->
-    <div v-if="error && packages.length" class="error-banner">
+    <!-- ── 错误横幅（独立显示，不影响数据渲染）── -->
+    <div v-if="error && isDemo" class="error-banner">
       <span class="eb-icon">⚡</span>
       <span class="eb-text">私服不可达，已自动加载演示数据 —— {{ error }}</span>
       <button class="eb-retry" @click="fetchPackages">重试连接</button>
     </div>
 
     <!-- ── 加载骨架 ────────────────────────── -->
-    <template v-else-if="loading && !packages.length">
+    <template v-if="loading && !packages.length">
       <div class="stats-row">
         <div v-for="i in 4" :key="i" class="stat-card skeleton"></div>
       </div>
