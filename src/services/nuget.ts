@@ -1,6 +1,12 @@
 // BaGet V3 API 客户端
-// 开发环境：Vite proxy /api/nuget → http://101.43.39.163/nuget
-// 生产环境：配置 Nginx 反向代理同路径
+// 开发环境：Vite proxy /api/nuget → http://101.43.39.163:5000
+// 生产环境：VITE_BAGET_URL=http://101.43.39.163:5000（需开放 5000 端口）
+//           或配置 IIS/Nginx 反代 /nuget/ → localhost:5000
+
+// 开发时走 Vite proxy（/api/nuget），生产时走环境变量指定的完整 URL
+const BASE = import.meta.env.VITE_BAGET_URL
+  ? `${import.meta.env.VITE_BAGET_URL}`
+  : '/api/nuget'
 
 export interface NuGetVersion {
   version: string
@@ -24,8 +30,6 @@ export interface NuGetSearchResponse {
   totalHits: number
   data: NuGetPackage[]
 }
-
-const BASE = '/api/nuget'
 
 export async function searchPackages(
   query = 'PF.',

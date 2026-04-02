@@ -14,8 +14,8 @@ export default defineConfig({
       // 开发环境代理：规避 HTTP 混合内容限制
       // /api/nuget/* → http://101.43.39.163/nuget/*
       '/api/nuget': {
-        target: 'http://101.43.39.163',
-        rewrite: (path) => path.replace(/^\/api\/nuget/, '/nuget'),
+        target: 'http://101.43.39.163:5000',
+        rewrite: (path) => path.replace(/^\/api\/nuget/, ''),
         changeOrigin: true,
         secure: false,
       },
