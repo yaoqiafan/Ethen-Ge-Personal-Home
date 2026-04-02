@@ -1,7 +1,7 @@
 // BaGet V3 API 客户端
-// 开发环境：Vite proxy /api/nuget → http://101.43.39.163:5000
-// 生产环境：VITE_BAGET_URL=http://101.43.39.163:5000（需开放 5000 端口）
-//           或配置 IIS/Nginx 反代 /nuget/ → localhost:5000
+// 开发环境：Vite proxy /api/nuget → http://101.43.39.163:8081
+// 生产环境：VITE_BAGET_URL=http://101.43.39.163:8081
+//   BaGet 现作为独立 IIS 站点运行在 8081 端口，不再通过 /nuget 路径代理
 
 // 开发时走 Vite proxy（/api/nuget），生产时走环境变量指定的完整 URL
 const BASE = import.meta.env.VITE_BAGET_URL

@@ -5,7 +5,7 @@
     <div class="status-bar">
       <div class="sb-left">
         <span class="conn-dot" :class="connClass"></span>
-        <code class="server-url">http://101.43.39.163/nuget</code>
+        <code class="server-url">http://101.43.39.163:8081</code>
         <span class="conn-label">{{ connLabel }}</span>
       </div>
       <div class="sb-right">

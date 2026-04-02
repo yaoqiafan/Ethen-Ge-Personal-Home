@@ -13,9 +13,9 @@ export default defineConfig({
   server: {
     proxy: {
       // 开发环境代理：规避 HTTP 混合内容限制
-      // /api/nuget/* → http://101.43.39.163/nuget/*
+      // /api/nuget/* → http://101.43.39.163:8081/*
       '/api/nuget': {
-        target: 'http://101.43.39.163:5000',
+        target: 'http://101.43.39.163:8081',
         rewrite: (path) => path.replace(/^\/api\/nuget/, ''),
         changeOrigin: true,
         secure: false,
