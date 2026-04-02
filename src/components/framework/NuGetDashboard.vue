@@ -23,9 +23,14 @@
 
     <!-- ── 错误横幅（独立显示，不影响数据渲染）── -->
     <div v-if="error && isDemo" class="error-banner">
-      <span class="eb-icon">⚡</span>
-      <span class="eb-text">私服不可达，已自动加载演示数据 —— {{ error }}</span>
-      <button class="eb-retry" @click="fetchPackages">重试连接</button>
+      <div class="eb-main">
+        <span class="eb-icon">⚡</span>
+        <span class="eb-text">{{ error }}</span>
+      </div>
+      <div class="eb-actions">
+        <a :href="testUrl" target="_blank" class="eb-link">在浏览器中测试 ↗</a>
+        <button class="eb-retry" @click="fetchPackages">重试</button>
+      </div>
     </div>
 
     <!-- ── 加载骨架（仅在首次冷启动前极短时间）── -->
@@ -174,6 +179,13 @@ import { searchPackages, DEMO_PACKAGES, type NuGetPackage } from '@/services/nug
 
 const emit = defineEmits<{ (e: 'status-change', online: boolean): void }>()
 
+// 生产环境直连地址（与 nuget.ts 中 BASE 保持一致）
+const BAGET_ORIGIN = import.meta.env.DEV
+  ? window.location.origin
+  : (import.meta.env.VITE_BAGET_URL as string | undefined ?? 'http://101.43.39.163:8081')
+
+const testUrl = `${BAGET_ORIGIN}/v3/index.json`
+
 const packages = ref<NuGetPackage[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -251,8 +263,12 @@ async function fetchPackages() {
     lastRefresh.value = new Date()
     emit('status-change', true)
   } catch (e) {
-    // 失败：保持演示数据，只更新提示信息
-    error.value = e instanceof Error ? e.message : String(e)
+    // 失败：保持演示数据，识别 CORS 给出明确提示
+    const msg = e instanceof Error ? e.message : String(e)
+    const isCors = msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')
+    error.value = isCors
+      ? `CORS 跨域被拒绝 — 请在 BaGet appsettings.json 中设置 "Cors": { "AllowAnyOrigin": true } 并重启应用程序池`
+      : msg
     emit('status-change', false)
     if (!isDemo.value) loadDemo()
   } finally {
@@ -396,17 +412,25 @@ onMounted(fetchPackages)
 /* ── 错误横幅 ─────────────────────────────── */
 .error-banner {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
   background: rgba(248,81,73,.05);
   border: 1px solid rgba(248,81,73,.2);
   border-radius: 6px;
   font-size: 11px;
-  flex-wrap: wrap;
 }
-.eb-icon { color: #f85149; flex-shrink: 0; }
-.eb-text { color: #7d8590; flex: 1; font-family: 'JetBrains Mono', monospace; min-width: 0; word-break: break-all; }
+.eb-main { display: flex; align-items: flex-start; gap: 8px; }
+.eb-icon { color: #f85149; flex-shrink: 0; margin-top: 1px; }
+.eb-text { color: #7d8590; flex: 1; font-family: 'JetBrains Mono', monospace; line-height: 1.6; word-break: break-all; }
+.eb-actions { display: flex; gap: 8px; align-items: center; padding-left: 18px; }
+.eb-link {
+  font-size: 10px; padding: 2px 10px; border-radius: 4px;
+  background: rgba(88,166,255,.08); border: 1px solid rgba(88,166,255,.25);
+  color: #58a6ff; font-family: 'JetBrains Mono', monospace; text-decoration: none;
+  transition: all .2s; white-space: nowrap;
+}
+.eb-link:hover { background: rgba(88,166,255,.16); }
 .eb-retry {
   font-size: 10px; padding: 2px 10px; border-radius: 4px; cursor: pointer;
   background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.25);
