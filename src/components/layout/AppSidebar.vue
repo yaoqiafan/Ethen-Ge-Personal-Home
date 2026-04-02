@@ -132,6 +132,14 @@ const navItems: NavItem[] = [
     icon: '◎',
     description: 'Kawasaki H2 展厅',
   },
+  {
+    id: 'kitchen',
+    label: '家庭厨房',
+    labelCN: 'Family Kitchen',
+    path: '/kitchen',
+    icon: '🍳',
+    description: '今日家常菜单',
+  },
 ]
 
 function isActive(path: string): boolean {
