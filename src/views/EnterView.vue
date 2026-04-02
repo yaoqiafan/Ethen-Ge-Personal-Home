@@ -197,7 +197,7 @@ onUnmounted(() => {
 .enter-screen {
   position: fixed;
   inset: 0;
-  background: #0a0e14;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -43,7 +43,7 @@ const isMobileMenuOpen = ref(false)
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: #0a0e14;
+  background: transparent;
   position: relative;
 }
 
