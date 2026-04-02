@@ -91,7 +91,6 @@ function initCanvas() {
   W = canvasEl.value.width  = window.innerWidth
   H = canvasEl.value.height = window.innerHeight
 
-  const [bvx, bvy] = randVel()
   pts = Array.from({ length: CFG.count }, () => {
     const [bvx, bvy] = randVel()
     return {
@@ -103,9 +102,6 @@ function initCanvas() {
       lit:  0, tlit: 0, cyan: false,
     }
   })
-
-  // 修正未使用变量（TypeScript 严格模式）
-  void bvx; void bvy
 }
 
 // ─── 主渲染循环 ───────────────────────────────────────────────────────────────
