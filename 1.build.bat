@@ -22,14 +22,26 @@ if not exist "dist" (
 if exist "dist\web.config" (
     echo web.config 已存在，跳过创建。
 ) else (
-    echo 正在生成 web.config...
+    echo 正在生成最新配置的 web.config...
     (
     echo ^<?xml version="1.0" encoding="UTF-8"?^>
     echo ^<configuration^>
     echo   ^<system.webServer^>
     echo     ^<rewrite^>
     echo       ^<rules^>
-    echo         ^<rule name="Handle History Mode and custom routing" stopProcessing="true"^>
+    echo         ^<rule name="BaGet Proxy" stopProcessing="true"^>
+    echo           ^<match url="^^nuget/?(.*)" /^>
+    echo           ^<action type="Rewrite" url="http://localhost:5000/{R:1}" /^>
+    echo         ^</rule^>
+    echo         ^<rule name="Redirect to Primary Domain Securely" stopProcessing="true"^>
+    echo           ^<match url="(.*)" /^>
+    echo           ^<conditions logicalGrouping="MatchAny"^>
+    echo             ^<add input="{HTTPS}" pattern="off" ignoreCase="true" /^>
+    echo             ^<add input="{HTTP_HOST}" pattern="^^www\.stoplesslab\.com$" negate="true" ignoreCase="true" /^>
+    echo           ^</conditions^>
+    echo           ^<action type="Redirect" url="https://www.stoplesslab.com/{R:1}" redirectType="Permanent" /^>
+    echo         ^</rule^>
+    echo         ^<rule name="Vue History Mode" stopProcessing="true"^>
     echo           ^<match url="(.*)" /^>
     echo           ^<conditions logicalGrouping="MatchAll"^>
     echo             ^<add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" /^>
@@ -39,6 +51,11 @@ if exist "dist\web.config" (
     echo         ^</rule^>
     echo       ^</rules^>
     echo     ^</rewrite^>
+    echo     ^<httpProtocol^>
+    echo       ^<customHeaders^>
+    echo         ^<remove name="X-Powered-By" /^>
+    echo       ^</customHeaders^>
+    echo     ^</httpProtocol^>
     echo   ^</system.webServer^>
     echo ^</configuration^>
     ) > "dist\web.config"
