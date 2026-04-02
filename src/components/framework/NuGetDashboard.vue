@@ -28,7 +28,7 @@
       <button class="eb-retry" @click="fetchPackages">重试连接</button>
     </div>
 
-    <!-- ── 加载骨架 ────────────────────────── -->
+    <!-- ── 加载骨架（仅在首次冷启动前极短时间）── -->
     <template v-if="loading && !packages.length">
       <div class="stats-row">
         <div v-for="i in 4" :key="i" class="stat-card skeleton"></div>
@@ -231,20 +231,30 @@ const filteredPackages = computed(() => {
 })
 
 // ── 方法 ────────────────────────────────────
+
+/** 立即展示演示数据，然后在后台静默尝试连接 BaGet */
 async function fetchPackages() {
+  // 先立即展示演示数据，保证页面不空白
+  if (!packages.value.length) {
+    loadDemo()
+  }
+
+  // 后台静默尝试连接真实私服
   loading.value = true
   error.value = ''
-  isDemo.value = false
   try {
     const res = await searchPackages('PF.', 100, includePrerelease.value)
+    // 成功：无缝替换为真实数据
     packages.value = res.data
+    isDemo.value = false
+    error.value = ''
     lastRefresh.value = new Date()
     emit('status-change', true)
   } catch (e) {
+    // 失败：保持演示数据，只更新提示信息
     error.value = e instanceof Error ? e.message : String(e)
     emit('status-change', false)
-    // 自动降级：连接失败时加载演示数据，无需手动操作
-    loadDemo()
+    if (!isDemo.value) loadDemo()
   } finally {
     loading.value = false
   }
