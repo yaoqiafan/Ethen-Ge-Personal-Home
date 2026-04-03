@@ -2,14 +2,13 @@
 import COS from 'cos-js-sdk-v5';
 
 // ── COS 基础配置 ──────────────────────────────────────────────────────────────
-// 建议这些值通过环境变量管理，避免密钥泄露
 const SECRET_ID = import.meta.env.VITE_COS_SECRET_ID || '';
 const SECRET_KEY = import.meta.env.VITE_COS_SECRET_KEY || '';
-const BUCKET = import.meta.env.VITE_COS_BUCKET || ''; // 格式：examplebucket-1250000000
-const REGION = import.meta.env.VITE_COS_REGION || ''; // 例如：ap-shanghai
+export const BUCKET = import.meta.env.VITE_COS_BUCKET || '';
+export const REGION = import.meta.env.VITE_COS_REGION || '';
 
-// 初始化 COS 实例
-const cos = new COS({
+// 初始化 COS 实例（导出供 kitchenService 复用）
+export const cos = new COS({
   SecretId: SECRET_ID,
   SecretKey: SECRET_KEY,
 });
