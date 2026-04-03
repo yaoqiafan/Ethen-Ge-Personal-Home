@@ -24,6 +24,7 @@
       <main class="content-main">
         <RouterView />
       </main>
+      <SiteFooter />
     </div>
   </div>
 </template>
@@ -31,8 +32,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterView } from 'vue-router'
-import AppSidebar from './AppSidebar.vue'
-import AppHeader from './AppHeader.vue'
+import AppSidebar  from './AppSidebar.vue'
+import AppHeader   from './AppHeader.vue'
+import SiteFooter  from './SiteFooter.vue'
 
 const isCollapsed = ref(false)
 const isMobileMenuOpen = ref(false)
