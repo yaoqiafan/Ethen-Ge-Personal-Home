@@ -21,10 +21,13 @@ export default defineConfig({
       },
       // /api/ai/* → http://localhost:5000  (BFF 层，无需前端携带 Token)
       '/api/ai': {
-        target: 'http://localhost:5000',
-        rewrite: (path) => path.replace(/^\/api\/ai/, ''),
-        changeOrigin: true,
-      },
+  target: 'http://localhost:18789',  // 改成 OpenClaw Gateway
+  rewrite: (path) => path.replace(/^\/api\/ai/, '/v1'),
+  changeOrigin: true,
+  headers: {
+    'Authorization': 'Bearer d6b3b76d798363c11793033e60a71ccc819242716b002149'
+  }
+}
     },
   },
 })
