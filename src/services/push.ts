@@ -3,10 +3,12 @@
 // 配置：VITE_PUSH_URL 或 VITE_PUSH_KEY 环境变量
 
 import type { OrderPayload } from '@/types/kitchen'
+// 引入 Server酱 3 官方 SDK
+import { scSend } from 'serverchan-sdk'
 
 // ── 推送渠道配置 ───────────────────────────────────────────────────────────────
 // Bark:      https://api.day.app/{key}/{title}/{body}
-// ServerChan: POST https://sctapi.ftqq.com/{key}.send  { title, desp }
+// ServerChan: 通过 serverchan-sdk 调用
 
 const PUSH_URL: string = import.meta.env.VITE_PUSH_URL as string ?? ''
 const PUSH_KEY: string = import.meta.env.VITE_PUSH_KEY as string ?? ''
@@ -36,16 +38,27 @@ async function pushViaBark(title: string, body: string): Promise<void> {
   if (!res.ok) throw new Error(`Bark 推送失败 (${res.status})`)
 }
 
-/** Server酱 推送（POST 请求格式） */
+/** Server酱 3 推送（使用官方 SDK） */
 async function pushViaServerChan(title: string, body: string): Promise<void> {
   const key = PUSH_KEY || PUSH_URL
   if (!key) throw new Error('未配置 Server酱 Key（VITE_PUSH_KEY）')
-  const url = key.startsWith('http') ? key : `https://sctapi.ftqq.com/${key}.send`
-  const form = new FormData()
-  form.append('title', title)
-  form.append('desp', body.replace(/\n/g, '\n\n'))
-  const res = await fetch(url, { method: 'POST', body: form })
-  if (!res.ok) throw new Error(`Server酱 推送失败 (${res.status})`)
+
+  // SDK 需要的是纯 Key（如 SCTxxx），为了兼容，如果填了完整 URL，我们从中提取出 Key
+  const sendKey = key.startsWith('http') 
+    ? key.split('/').pop()?.replace('.send', '') || key 
+    : key
+
+  try {
+    // 调用官方 SDK 发送推送，支持第四个参数传入 tags（可选）
+    const response = await scSend(sendKey, title, body, { tags: '厨房订单|新点单' })
+    
+    // 检查返回值（Server酱 3 成功时通常 code 为 0）
+    if (response && response.code !== 0) {
+      throw new Error(response.message || '未知错误')
+    }
+  } catch (error: any) {
+    throw new Error(`Server酱 SDK 推送失败: ${error.message || error}`)
+  }
 }
 
 /**
@@ -61,9 +74,15 @@ export async function sendOrderPush(order: OrderPayload): Promise<void> {
     return
   }
 
-  // 根据 URL 特征判断渠道
+  // 根据 URL 或 Key 特征判断渠道
   const endpoint = PUSH_URL || PUSH_KEY
-  if (endpoint.includes('sctapi.ftqq.com') || endpoint.includes('sc.ftqq.com')) {
+  
+  if (
+    endpoint.includes('sctapi.ftqq.com') || 
+    endpoint.includes('sc.ftqq.com') ||
+    endpoint.startsWith('SCT')||
+    endpoint.startsWith('sct')
+  ) {
     await pushViaServerChan(title, body)
   } else {
     // 默认 Bark
