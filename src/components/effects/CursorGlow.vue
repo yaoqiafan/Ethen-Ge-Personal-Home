@@ -22,6 +22,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
+// 触摸屏（手机/平板）不显示鼠标特效
+const isTouch = window.matchMedia('(pointer: coarse)').matches
+
 // 当前真实鼠标坐标
 const mouseX = ref(0)
 const mouseY = ref(0)
@@ -68,6 +71,7 @@ function onMouseOver(e: MouseEvent) {
 }
 
 onMounted(() => {
+  if (isTouch) return   // 触摸屏跳过，不监听事件、不启动 RAF
   window.addEventListener('mousemove', onMouseMove, { passive: true })
   window.addEventListener('mouseover', onMouseOver, { passive: true })
   document.addEventListener('mouseleave', () => { visible.value = false })
@@ -76,6 +80,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (isTouch) return
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseover', onMouseOver)
   if (rafId) cancelAnimationFrame(rafId)
@@ -89,6 +94,11 @@ onUnmounted(() => {
   pointer-events: none;
   z-index: 9999;
   overflow: hidden;
+}
+
+/* 触摸屏：完全隐藏整个层 */
+@media (pointer: coarse) {
+  .cursor-glow-layer { display: none; }
 }
 
 /* ── 外圈大光晕 ──────────────────────────── */

@@ -29,7 +29,13 @@
           <div v-if="dishes.length === 0" class="ap-empty">暂无菜品，请先新增</div>
           <div v-for="dish in dishes" :key="dish.id" class="dish-row">
             <div class="dr-img-wrap">
-              <img v-if="dish.imageUrl" :src="dish.imageUrl" :alt="dish.name" class="dr-img" @error="(e) => ((e.target as HTMLImageElement).style.display='none')" />
+              <img
+                v-if="dish.imageUrl && !failedImages.has(dish.id)"
+                :src="dish.imageUrl"
+                :alt="dish.name"
+                class="dr-img"
+                @error="failedImages.add(dish.id)"
+              />
               <span v-else class="dr-emoji">{{ CATEGORY_ICONS[dish.category] }}</span>
             </div>
             <div class="dr-info">
@@ -111,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import type { Dish, DishCategory } from '@/types/kitchen'
 import { DISH_CATEGORIES, CATEGORY_ICONS } from '@/types/kitchen'
 import * as kitchenSvc from '@/services/kitchenService'
@@ -123,8 +129,10 @@ const emit = defineEmits<{
   (e: 'refresh'): void
 }>()
 
-const activeTab = ref<'list' | 'form'>('list')
-const editingId = ref<string | null>(null)
+const activeTab    = ref<'list' | 'form'>('list')
+const editingId    = ref<string | null>(null)
+// 图片加载失败的菜品 ID 集合，用于回退到 emoji 显示
+const failedImages = reactive(new Set<string>())
 const saving    = ref(false)
 const uploading = ref(false)
 const isDragging = ref(false)

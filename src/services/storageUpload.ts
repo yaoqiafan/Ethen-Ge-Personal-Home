@@ -59,9 +59,11 @@ export async function uploadImage(file: File): Promise<UploadResult> {
       // 3. 返回符合接口签名的结果
       // data.Location 返回的是不带协议的 URL (例如：example-125...cos.ap-shanghai.myqcloud.com/path)
       // 我们统一补全 https 协议
-      const finalUrl = data.Location.startsWith('http') 
-        ? data.Location 
+      const finalUrl = data.Location.startsWith('http')
+        ? data.Location
         : `https://${data.Location}`;
+
+      console.log('COS最终图片链接:', finalUrl);
 
       resolve({
         url: finalUrl,
