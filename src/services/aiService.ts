@@ -1,8 +1,15 @@
 // AI BFF 服务层
-// 基础路径 /api/ai → dev proxy → http://localhost:5000
-// 前端无需携带任何 Token，鉴权由 BFF 统一处理
+// 基础路径 /api/ai → IIS proxy → http://127.0.0.1:18789/v1
+// OpenClaw Gateway HTTP API (Bearer Token)
 
 const BASE = '/api/ai'
+const AUTH_TOKEN = 'Bearer d6b3b76d798363c11793033e60a71ccc819242716b002149'
+
+// 通用请求头
+const headers = {
+  'Authorization': AUTH_TOKEN,
+  'Content-Type': 'application/json',
+}
 
 // ── 类型定义 ─────────────────────────────────────────────────────────────────
 
@@ -45,21 +52,34 @@ export interface ApprovalRequest {
 
 /** 获取可用模型列表 */
 export async function getModels(): Promise<AIModel[]> {
-  const res = await fetch(`${BASE}/models`)
+  const res = await fetch(`${BASE}/models`, { headers })
   if (!res.ok) throw new Error(`getModels 失败 (${res.status})`)
-  return res.json()
+  const data = await res.json()
+  // OpenClaw 返回格式: { object: "list", data: [{id: "openclaw/default", ...}] }
+  return data.data?.map((m: any) => ({
+    id: m.id,
+    name: m.id.replace('openclaw/', ''),
+    provider: 'OpenClaw',
+    online: true,
+    latency: 0,
+    color: '#4F46E5',
+  })) ?? []
 }
 
 /** 获取 OpenClaw 节点在线状态 */
 export async function getSystemStatus(): Promise<SystemStatus> {
-  const res = await fetch(`${BASE}/status`)
-  if (!res.ok) throw new Error(`getSystemStatus 失败 (${res.status})`)
-  return res.json()
+  // OpenClaw HTTP API 没有 /status 端点，返回模拟数据
+  // 如需真实数据，需通过 WebSocket API 获取
+  return {
+    nodeCount: 1,
+    sessionCount: 1,
+    nodes: [{ id: 'main', name: 'Main Agent', status: 'online', region: 'local' }],
+  }
 }
 
 /**
- * SSE 流式对话
- * @returns abort 函数，调用后中断流
+ * 对话（非流式，OpenClaw HTTP API 临时方案）
+ * @returns abort 函数（暂不支持中断）
  */
 export function chatStream(
   messages: ChatMessage[],
@@ -68,56 +88,32 @@ export function chatStream(
   onDone: () => void,
   onError: (err: Error) => void,
 ): () => void {
-  const ctrl = new AbortController()
-
-  ;(async () => {
-    try {
-      const res = await fetch(`${BASE}/chat/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, model }),
-        signal: ctrl.signal,
-      })
-
+  // OpenClaw HTTP API 使用 /v1/chat/completions
+  fetch(`${BASE}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: model || 'openclaw/default',
+      messages,
+      stream: false,  // 暂时不支持流式
+    }),
+  })
+    .then(async (res) => {
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`BFF ${res.status}: ${text || res.statusText}`)
       }
-
-      const reader = res.body!.getReader()
-      const decoder = new TextDecoder()
-      let buf = ''
-
-      outer: while (true) {
-        const { done, value } = await reader.read()
-        if (done) { onDone(); break }
-
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop() ?? ''   // 保留未完成的尾行
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const payload = line.slice(6).trim()
-          if (payload === '[DONE]') { onDone(); break outer }
-          try {
-            const obj = JSON.parse(payload)
-            // 兼容 OpenAI delta 格式 和直接 text/content 字段
-            const text: string =
-              obj.choices?.[0]?.delta?.content ??
-              obj.content ??
-              obj.text ??
-              ''
-            if (text) onChunk(text)
-          } catch { /* 忽略非 JSON 行（注释、心跳等） */ }
-        }
-      }
-    } catch (e) {
+      const data = await res.json()
+      // OpenAI 格式: { choices: [{ message: { content: "..." } }] }
+      const text = data.choices?.[0]?.message?.content ?? ''
+      if (text) onChunk(text)
+      onDone()
+    })
+    .catch((e) => {
       if ((e as Error).name !== 'AbortError') onError(e as Error)
-    }
-  })()
+    })
 
-  return () => ctrl.abort()
+  return () => {}  // 暂不支持中断
 }
 
 /** 处理高危审批拦截（允许 / 拒绝） */
