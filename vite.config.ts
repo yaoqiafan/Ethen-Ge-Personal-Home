@@ -12,13 +12,18 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // 开发环境代理：规避 HTTP 混合内容限制
       // /api/nuget/* → http://101.43.39.163:8081/*
       '/api/nuget': {
         target: 'http://101.43.39.163:8081',
         rewrite: (path) => path.replace(/^\/api\/nuget/, ''),
         changeOrigin: true,
         secure: false,
+      },
+      // /api/ai/* → http://localhost:5000  (BFF 层，无需前端携带 Token)
+      '/api/ai': {
+        target: 'http://localhost:5000',
+        rewrite: (path) => path.replace(/^\/api\/ai/, ''),
+        changeOrigin: true,
       },
     },
   },
