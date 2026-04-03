@@ -25,6 +25,17 @@ export interface UploadResult {
  * @param file - 要上传的图片 File 对象
  */
 export async function uploadImage(file: File): Promise<UploadResult> {
+  // 0. 检查环境变量是否已配置
+  if (!SECRET_ID || !SECRET_KEY || !BUCKET || !REGION) {
+    const missing = [
+      !SECRET_ID  && 'VITE_COS_SECRET_ID',
+      !SECRET_KEY && 'VITE_COS_SECRET_KEY',
+      !BUCKET     && 'VITE_COS_BUCKET',
+      !REGION     && 'VITE_COS_REGION',
+    ].filter(Boolean).join(', ')
+    throw new Error(`COS 未配置，请在 .env.local 中设置：${missing}`)
+  }
+
   // 1. 基础校验（保留你原有的逻辑）
   if (!file.type.startsWith('image/')) {
     throw new Error('仅支持图片文件（JPG / PNG / WebP / GIF）');
