@@ -72,6 +72,7 @@
               </div>
             </div>
             <input ref="fileInputRef" type="file" accept="image/*" class="file-input-hidden" @change="onFileChange" />
+            <div v-if="uploadError" class="upload-error">⚠ {{ uploadError }}</div>
 
             <!-- 表单字段 -->
             <div class="form-field">
@@ -133,10 +134,11 @@ const activeTab    = ref<'list' | 'form'>('list')
 const editingId    = ref<string | null>(null)
 // 图片加载失败的菜品 ID 集合，用于回退到 emoji 显示
 const failedImages = reactive(new Set<string>())
-const saving    = ref(false)
-const uploading = ref(false)
-const isDragging = ref(false)
-const previewUrl = ref('')
+const saving      = ref(false)
+const uploading   = ref(false)
+const uploadError = ref('')
+const isDragging  = ref(false)
+const previewUrl  = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 interface DishForm {
@@ -157,6 +159,7 @@ watch(() => props.modelValue, (v) => {
 function openAdd() {
   form.value = defaultForm()
   previewUrl.value = ''
+  uploadError.value = ''
   editingId.value = null
   activeTab.value = 'form'
 }
@@ -175,13 +178,15 @@ function openEdit(dish: Dish) {
 async function handleFile(file: File) {
   if (!file.type.startsWith('image/')) return
   uploading.value = true
+  uploadError.value = ''
   try {
-    // 先本地预览
+    // 先本地预览（不依赖 COS，即使上传失败也能看到图片）
     previewUrl.value = await fileToDataUrl(file)
-    // 上传（当前 Mock）
     const result = await uploadImage(file)
     form.value.imageUrl = result.url
-  } catch (e) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '未知错误'
+    uploadError.value = msg
     console.error('图片上传失败:', e)
   } finally {
     uploading.value = false
@@ -286,6 +291,11 @@ async function deleteDish(id: string) {
 .upload-hint span { font-size: 12px; color: #7d8590; }
 .upload-sub { font-size: 10px !important; color: #484f58 !important; }
 .file-input-hidden { display: none; }
+.upload-error {
+  font-size: 11px; color: #f85149; font-family: 'JetBrains Mono', monospace;
+  background: rgba(248,81,73,.06); border: 1px solid rgba(248,81,73,.25);
+  border-radius: 5px; padding: 6px 10px; word-break: break-all;
+}
 
 .form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 11px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
