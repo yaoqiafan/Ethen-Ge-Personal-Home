@@ -20,6 +20,10 @@
           <span class="cart-fab-label">点菜单</span>
           <span v-if="cartCount > 0" class="cart-fab-count">{{ cartCount }}</span>
         </button>
+        <!-- 分享点菜链接 -->
+        <button class="share-entry" :title="'复制点菜链接'" @click="copyMenuLink">
+          <span>{{ copied ? '✓' : '⎘' }}</span>
+        </button>
         <!-- 管理入口（低调按钮） -->
         <button class="admin-entry" :title="'后台管理'" @click="showAdmin = true">
           <span>⚙</span>
@@ -88,6 +92,7 @@ const loading         = ref(true)
 const selectedCategory = ref<DishCategory | null>(null)
 const showAdmin       = ref(false)
 const toastRef        = ref<InstanceType<typeof KitchenToast> | null>(null)
+const copied          = ref(false)
 
 // ── 计算 ──────────────────────────────────────────────────────────────────────
 const filteredDishes = computed(() =>
@@ -132,6 +137,27 @@ function handleOrderSubmitted() {
 
 function handleOrderError() {
   toastRef.value?.show('发送失败，请检查推送配置', 'error')
+}
+
+// ── 分享点菜链接 ────────────────────────────────────────────────────────────────
+async function copyMenuLink() {
+  const url = `${window.location.origin}/menu`
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch {
+    // 降级：用 execCommand
+    const ta = document.createElement('textarea')
+    ta.value = url
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  copied.value = true
+  toastRef.value?.show(`链接已复制 ${url}`, 'success')
+  setTimeout(() => { copied.value = false }, 2000)
 }
 </script>
 
@@ -179,6 +205,14 @@ function handleOrderError() {
   animation: pop-in .2s cubic-bezier(0.34,1.56,0.64,1);
 }
 @keyframes pop-in { from { transform: scale(0); } to { transform: scale(1); } }
+
+.share-entry {
+  width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+  background: transparent; border: 1px solid #21262d;
+  color: #484f58; font-size: 14px; transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.share-entry:hover { color: #58a6ff; border-color: rgba(88,166,255,.3); background: rgba(88,166,255,.06); }
 
 .admin-entry {
   width: 32px; height: 32px; border-radius: 6px; cursor: pointer;

@@ -6,12 +6,18 @@ import FrameworkView from '@/views/FrameworkView.vue'
 import AIToolboxView from '@/views/AIToolboxView.vue'
 import GarageView from '@/views/GarageView.vue'
 import KitchenView from '@/views/KitchenView.vue'
+import KitchenPublicView from '@/views/KitchenPublicView.vue'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'enter',
     component: EnterView,
+  },
+  {
+    path: '/menu',
+    name: 'menu',
+    component: KitchenPublicView,
   },
   {
     path: '/',
