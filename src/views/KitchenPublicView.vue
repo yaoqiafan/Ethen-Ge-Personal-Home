@@ -47,8 +47,8 @@
       <p>该分类暂无菜品</p>
     </div>
 
-    <!-- 底部留白（防止被移动端底栏遮挡） -->
-    <div class="menu-footer-space" />
+    <!-- 底部合规信息 -->
+    <SiteFooter />
 
     <!-- 点菜单抽屉 -->
     <OrderCart @submitted="handleSubmitted" @error="handleError" />
@@ -73,6 +73,7 @@ import CategoryTabs  from '@/components/kitchen/CategoryTabs.vue'
 import DishCard      from '@/components/kitchen/DishCard.vue'
 import OrderCart     from '@/components/kitchen/OrderCart.vue'
 import KitchenToast  from '@/components/kitchen/KitchenToast.vue'
+import SiteFooter    from '@/components/layout/SiteFooter.vue'
 
 // ── 状态 ──────────────────────────────────────────────────────────────────────
 const allDishes        = ref<Dish[]>([])
@@ -207,8 +208,6 @@ function handleError() {
   display: flex; flex-direction: column; align-items: center; gap: 12px;
 }
 .empty-icon { font-size: 48px; opacity: .6; }
-
-.menu-footer-space { height: 60px; }
 
 /* ── 移动端适配 ────────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {

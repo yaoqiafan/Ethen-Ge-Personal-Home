@@ -89,6 +89,9 @@
 
       </div>
     </div>
+
+    <!-- 合规备案信息 -->
+    <SiteFooter class="enter-footer" />
   </div>
 </template>
 
@@ -97,6 +100,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { sleep } from '@/composables/useTypewriter'
 import type { BootLine, BootPhase } from '@/types'
+import SiteFooter from '@/components/layout/SiteFooter.vue'
 
 const router = useRouter()
 const screenRef = ref<HTMLDivElement | null>(null)
@@ -204,6 +208,17 @@ onUnmounted(() => {
   padding: 1.5rem;
   outline: none;
   cursor: default;
+}
+
+/* 备案信息浮在终端底部，不占用布局空间 */
+.enter-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-top: none !important;
+  padding: 8px 16px !important;
+  pointer-events: auto;
 }
 
 .enter-screen.glitch-out {
