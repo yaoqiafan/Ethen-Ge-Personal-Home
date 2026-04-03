@@ -19,9 +19,7 @@ if not exist "dist" (
     goto end
 )
 
-if exist "dist\web.config" (
-    echo web.config 已存在，跳过创建。
-) else (
+if exist "dist\web.config" del "dist\web.config"
     echo 正在生成最新配置的 web.config...
     (
     echo ^<?xml version="1.0" encoding="UTF-8"?^>
@@ -31,7 +29,7 @@ if exist "dist\web.config" (
     echo       ^<rules^>
     echo         ^<rule name="BaGet Proxy" stopProcessing="true"^>
     echo           ^<match url="^^nuget/?(.*)" /^>
-    echo           ^<action type="Rewrite" url="http://localhost:5000/{R:1}" /^>
+    echo           ^<action type="Rewrite" url="http://localhost:8081/{R:1}" /^>
     echo         ^</rule^>
     echo         ^<rule name="Redirect to Primary Domain Securely" stopProcessing="true"^>
     echo           ^<match url="(.*)" /^>
@@ -60,7 +58,6 @@ if exist "dist\web.config" (
     echo ^</configuration^>
     ) > "dist\web.config"
     echo web.config 创建成功！
-)
 
 echo.
 echo ========================================

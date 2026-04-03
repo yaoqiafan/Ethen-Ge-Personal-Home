@@ -179,12 +179,10 @@ import { searchPackages, DEMO_PACKAGES, type NuGetPackage } from '@/services/nug
 
 const emit = defineEmits<{ (e: 'status-change', online: boolean): void }>()
 
-// 生产环境直连地址（与 nuget.ts 中 BASE 保持一致）
-const BAGET_ORIGIN = import.meta.env.DEV
-  ? window.location.origin
-  : (import.meta.env.VITE_BAGET_URL as string | undefined ?? 'http://101.43.39.163:8081')
-
-const testUrl = `${BAGET_ORIGIN}/v3/index.json`
+// 测试链接：浏览器直接打开 IIS 反代路径
+const testUrl = import.meta.env.DEV
+  ? `${window.location.origin}/api/nuget/v3/index.json`
+  : `${window.location.origin}/nuget/v3/index.json`
 
 const packages = ref<NuGetPackage[]>([])
 const loading = ref(false)
