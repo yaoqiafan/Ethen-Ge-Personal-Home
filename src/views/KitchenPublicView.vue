@@ -8,50 +8,62 @@
           <span class="menu-icon">🍳</span>
           <div>
             <div class="menu-title">家庭厨房</div>
-            <div class="menu-tagline">Family Kitchen · 今日菜单</div>
+            <div class="menu-tagline">Family Kitchen · {{ tagline }}</div>
           </div>
         </div>
         <!-- 悬浮购物车按钮 -->
-        <button class="cart-fab" @click="openCart">
+        <button v-if="hasSession" class="cart-fab" @click="openCart">
           <span>◫ 点菜单</span>
           <span v-if="cartCount > 0" class="cart-count">{{ cartCount }}</span>
         </button>
       </div>
-      <div class="menu-meta">{{ availableCount }} 道菜可选 · {{ soldOutCount }} 道今日估清</div>
+      <div class="menu-meta">
+        <template v-if="hasSession">{{ availableCount }} 道菜可选 · {{ soldOutCount }} 道今日估清</template>
+        <template v-else>请向大厨索要点菜链接</template>
+      </div>
     </header>
 
-    <!-- 分类 Tabs -->
-    <CategoryTabs v-model="selectedCategory" :dishes="allDishes" />
-
-    <!-- 加载骨架 -->
-    <div v-if="loading" class="dish-loading">
-      <div v-for="i in 6" :key="i" class="dish-skeleton" />
+    <!-- 无工单提示 -->
+    <div v-if="!hasSession" class="no-session">
+      <span class="no-session-icon">🔗</span>
+      <p class="no-session-title">尚未选择工单</p>
+      <p class="no-session-sub">请向大厨索要点菜链接，通过链接进入即可开始点菜。</p>
     </div>
 
-    <!-- 菜品网格 -->
-    <div v-else-if="filteredDishes.length" class="dish-grid">
-      <DishCard
-        v-for="dish in filteredDishes"
-        :key="dish.id"
-        :dish="dish"
-        :cart-qty="getCartQty(dish.id)"
-        @add="addToCart"
-        @increment="addToCart"
-        @decrement="decrementCart"
-      />
-    </div>
+    <template v-else>
+      <!-- 分类 Tabs -->
+      <CategoryTabs v-model="selectedCategory" :dishes="allDishes" />
 
-    <!-- 空状态 -->
-    <div v-else class="dish-empty">
-      <span class="empty-icon">🥢</span>
-      <p>该分类暂无菜品</p>
-    </div>
+      <!-- 加载骨架 -->
+      <div v-if="loading" class="dish-loading">
+        <div v-for="i in 6" :key="i" class="dish-skeleton" />
+      </div>
+
+      <!-- 菜品网格 -->
+      <div v-else-if="filteredDishes.length" class="dish-grid">
+        <DishCard
+          v-for="dish in filteredDishes"
+          :key="dish.id"
+          :dish="dish"
+          :cart-qty="getCartQty(dish.id)"
+          @add="addToCart"
+          @increment="addToCart"
+          @decrement="decrementCart"
+        />
+      </div>
+
+      <!-- 空状态 -->
+      <div v-else class="dish-empty">
+        <span class="empty-icon">🥢</span>
+        <p>该分类暂无菜品</p>
+      </div>
+    </template>
 
     <!-- 底部合规信息 -->
     <SiteFooter />
 
-    <!-- 点菜单抽屉 -->
-    <OrderCart @submitted="handleSubmitted" @error="handleError" />
+    <!-- 点菜单抽屉（只在有工单时渲染） -->
+    <OrderCart v-if="hasSession" @submitted="handleSubmitted" @error="handleError" />
 
     <!-- Toast -->
     <KitchenToast ref="toastRef" />
@@ -60,14 +72,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import type { Dish, DishCategory } from '@/types/kitchen'
 import * as kitchenSvc from '@/services/kitchenService'
 import {
-  cartCount, cartItems,
+  cartCount, cartItems, sessionName,
   addToCart as _addToCart,
   removeFromCart, setQuantity,
-  openCart,
+  openCart, initSession, stopSession,
 } from '@/composables/useKitchenCart'
 import CategoryTabs  from '@/components/kitchen/CategoryTabs.vue'
 import DishCard      from '@/components/kitchen/DishCard.vue'
@@ -80,8 +93,17 @@ const allDishes        = ref<Dish[]>([])
 const loading          = ref(true)
 const selectedCategory = ref<DishCategory | null>(null)
 const toastRef         = ref<InstanceType<typeof KitchenToast> | null>(null)
+const currentSid       = ref<string | null>(null)
+
+const route = useRoute()
 
 // ── 计算 ──────────────────────────────────────────────────────────────────────
+const hasSession = computed(() => !!currentSid.value)
+
+const tagline = computed(() =>
+  sessionName.value ? sessionName.value : '今日菜单'
+)
+
 const filteredDishes = computed(() =>
   selectedCategory.value
     ? allDishes.value.filter(d => d.category === selectedCategory.value)
@@ -115,10 +137,22 @@ async function loadDishes() {
   }
 }
 
-onMounted(loadDishes)
+// ── 生命周期 ───────────────────────────────────────────────────────────────────
+onMounted(async () => {
+  const sid = route.query.sid as string | undefined
+  if (sid) {
+    currentSid.value = sid
+    await Promise.all([loadDishes(), initSession(sid)])
+  }
+})
+
+onBeforeUnmount(() => {
+  stopSession()
+})
 
 // ── 提交回调 ───────────────────────────────────────────────────────────────────
 function handleSubmitted() {
+  // 工单由大厨在后台手动结束，前端只发推送通知、保持购物车和工单 active
   toastRef.value?.show('点单已发送给大厨！🍳', 'success')
 }
 
@@ -178,6 +212,16 @@ function handleError() {
   animation: pop-in .2s cubic-bezier(0.34,1.56,0.64,1);
 }
 @keyframes pop-in { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* ── 无工单提示 ───────────────────────────────────────────────────────────── */
+.no-session {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px; padding: 4rem 2rem; text-align: center;
+}
+.no-session-icon { font-size: 52px; opacity: .5; }
+.no-session-title { font-size: 16px; font-weight: 700; color: #7d8590; margin: 0; }
+.no-session-sub { font-size: 12px; color: #484f58; margin: 0; max-width: 280px; line-height: 1.6; }
 
 /* ── 菜品网格 ─────────────────────────────────────────────────────────────── */
 .dish-grid {

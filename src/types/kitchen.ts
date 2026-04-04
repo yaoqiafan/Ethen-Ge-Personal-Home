@@ -24,10 +24,22 @@ export interface Dish {
 export interface CartItem {
   dish: Dish
   quantity: number
+  submittedQty?: number // 已成功推送给大厨的数量，undefined / 0 表示未提交
 }
 
 export interface OrderPayload {
   items: CartItem[]
   note: string
   submittedAt: string
+}
+
+export type SessionStatus = 'active' | 'closed'
+
+export interface OrderSession {
+  id: string
+  name: string           // 工单名称，如"周五晚上烧烤"
+  status: SessionStatus
+  items: CartItem[]      // 共享的购物车内容
+  createdAt: string
+  updatedAt: string
 }

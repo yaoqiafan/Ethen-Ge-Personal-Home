@@ -22,6 +22,7 @@
         <div class="ap-tabs">
           <button class="ap-tab" :class="{ active: activeTab === 'list' }" @click="activeTab = 'list'">菜品列表</button>
           <button class="ap-tab" :class="{ active: activeTab === 'form'  }" @click="openAdd">新增菜品</button>
+          <button class="ap-tab" :class="{ active: activeTab === 'sessions' }" @click="openSessions">工单管理</button>
         </div>
 
         <!-- 菜品列表 -->
@@ -112,14 +113,87 @@
             </div>
           </form>
         </div>
+
+        <!-- 工单管理 -->
+        <div v-if="activeTab === 'sessions'" class="ap-body">
+          <!-- 新建工单 -->
+          <div class="session-create-box">
+            <div class="sc-label">新建点单工单</div>
+            <div class="sc-row">
+              <input
+                v-model="newSessionName"
+                class="form-input sc-input"
+                placeholder="工单名称，如：周末大餐"
+                @keydown.enter.prevent="doCreateSession"
+              />
+              <button class="btn-create-session" :disabled="creatingSession || !newSessionName.trim()" @click="doCreateSession">
+                {{ creatingSession ? '创建中…' : '+ 创建' }}
+              </button>
+            </div>
+            <!-- 刚创建的分享链接 -->
+            <div v-if="createdLink" class="sc-link-box">
+              <div class="sc-link-label">分享链接</div>
+              <div class="sc-link-wrap">
+                <span class="sc-link-text">{{ createdLink }}</span>
+                <button class="btn-copy" @click="copyLink(createdLink)">{{ copiedLink === createdLink ? '✓ 已复制' : '复制' }}</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 工单列表 -->
+          <div class="session-list-header">历史工单</div>
+          <div v-if="sessionsLoading" class="ap-empty">加载中…</div>
+          <div v-else-if="sortedSessions.length === 0" class="ap-empty">暂无工单记录</div>
+          <div v-else>
+            <div v-for="sess in sortedSessions" :key="sess.id" class="session-row">
+              <div class="sr-top">
+                <div class="sr-info">
+                  <span class="sr-name">{{ sess.name }}</span>
+                  <span class="sr-badge" :class="sess.status === 'active' ? 'badge-active' : 'badge-closed'">
+                    {{ sess.status === 'active' ? '进行中' : '已结束' }}
+                  </span>
+                </div>
+                <div class="sr-time">{{ formatTime(sess.createdAt) }}</div>
+              </div>
+              <div class="sr-meta">已点 {{ sess.items.length }} 道菜 · 共 {{ totalQty(sess.items) }} 份</div>
+              <!-- 活跃工单操作 -->
+              <div v-if="sess.status === 'active'" class="sr-actions">
+                <button class="dr-btn btn-copy-link" @click="copyLink(makeLink(sess.id))">
+                  {{ copiedLink === makeLink(sess.id) ? '✓ 已复制' : '复制链接' }}
+                </button>
+                <button class="dr-btn btn-view-items" @click="toggleExpand(sess.id)">
+                  {{ expandedId === sess.id ? '收起' : '查看已点' }}
+                </button>
+                <button class="dr-btn btn-close-session" @click="doCloseSession(sess.id)">结束工单</button>
+              </div>
+              <!-- 已结束工单操作 -->
+              <div v-else class="sr-actions">
+                <button class="dr-btn btn-view-items" @click="toggleExpand(sess.id)">
+                  {{ expandedId === sess.id ? '收起' : '查看已点' }}
+                </button>
+              </div>
+              <!-- 展开的菜品列表 -->
+              <div v-if="expandedId === sess.id && sess.items.length > 0" class="sr-items">
+                <div v-for="item in sess.items" :key="item.dish.id" class="sr-item">
+                  <span class="sri-name">{{ item.dish.name }}</span>
+                  <span class="sri-cat">{{ item.dish.category }}</span>
+                  <span class="sri-qty">× {{ item.quantity }}</span>
+                </div>
+              </div>
+              <div v-if="expandedId === sess.id && sess.items.length === 0" class="sr-items sr-items--empty">
+                暂无点菜记录
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import type { Dish, DishCategory } from '@/types/kitchen'
+import { ref, reactive, watch, computed } from 'vue'
+import type { Dish, DishCategory, OrderSession, CartItem } from '@/types/kitchen'
 import { DISH_CATEGORIES, CATEGORY_ICONS } from '@/types/kitchen'
 import * as kitchenSvc from '@/services/kitchenService'
 import { uploadImage, fileToDataUrl } from '@/services/storageUpload'
@@ -130,9 +204,8 @@ const emit = defineEmits<{
   (e: 'refresh'): void
 }>()
 
-const activeTab    = ref<'list' | 'form'>('list')
+const activeTab    = ref<'list' | 'form' | 'sessions'>('list')
 const editingId    = ref<string | null>(null)
-// 图片加载失败的菜品 ID 集合，用于回退到 emoji 显示
 const failedImages = reactive(new Set<string>())
 const saving      = ref(false)
 const uploading   = ref(false)
@@ -180,7 +253,6 @@ async function handleFile(file: File) {
   uploading.value = true
   uploadError.value = ''
   try {
-    // 先本地预览（不依赖 COS，即使上传失败也能看到图片）
     previewUrl.value = await fileToDataUrl(file)
     const result = await uploadImage(file)
     form.value.imageUrl = result.url
@@ -231,6 +303,85 @@ async function deleteDish(id: string) {
   if (!confirm('确认删除这道菜？')) return
   await kitchenSvc.remove(id)
   emit('refresh')
+}
+
+// ── 工单管理 ──────────────────────────────────────────────────────────────────
+const sessions        = ref<OrderSession[]>([])
+const sessionsLoading = ref(false)
+const newSessionName  = ref('')
+const creatingSession = ref(false)
+const createdLink     = ref('')
+const copiedLink      = ref('')
+const expandedId      = ref<string | null>(null)
+
+const sortedSessions = computed(() =>
+  [...sessions.value].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+)
+
+async function loadSessions() {
+  sessionsLoading.value = true
+  try { sessions.value = await kitchenSvc.getSessions() }
+  finally { sessionsLoading.value = false }
+}
+
+async function openSessions() {
+  activeTab.value = 'sessions'
+  await loadSessions()
+}
+
+function makeLink(sessionId: string): string {
+  return `${window.location.origin}/menu?sid=${sessionId}`
+}
+
+async function copyLink(url: string) {
+  try {
+    await navigator.clipboard.writeText(url)
+    copiedLink.value = url
+    setTimeout(() => { if (copiedLink.value === url) copiedLink.value = '' }, 2500)
+  } catch {
+    console.warn('复制失败，请手动复制')
+  }
+}
+
+async function doCreateSession() {
+  if (!newSessionName.value.trim() || creatingSession.value) return
+  creatingSession.value = true
+  createdLink.value = ''
+  try {
+    const sess = await kitchenSvc.createSession(newSessionName.value)
+    createdLink.value = makeLink(sess.id)
+    newSessionName.value = ''
+    await loadSessions()
+  } catch (e) {
+    console.error('创建工单失败:', e)
+  } finally {
+    creatingSession.value = false
+  }
+}
+
+async function doCloseSession(id: string) {
+  if (!confirm('确认结束该工单？结束后家人将无法继续点菜。')) return
+  try {
+    await kitchenSvc.closeSession(id)
+    await loadSessions()
+    if (expandedId.value === id) expandedId.value = null
+  } catch (e) {
+    console.error('结束工单失败:', e)
+  }
+}
+
+function toggleExpand(id: string) {
+  expandedId.value = expandedId.value === id ? null : id
+}
+
+function totalQty(items: CartItem[]): number {
+  return items.reduce((s, i) => s + i.quantity, 0)
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 </script>
 
@@ -324,6 +475,75 @@ async function deleteDish(id: string) {
 .btn-save { padding: 7px 20px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: 'JetBrains Mono', monospace; font-weight: 700; background: rgba(249,115,22,.15); border: 1px solid rgba(249,115,22,.4); color: #f97316; transition: all .2s; }
 .btn-save:hover:not(:disabled) { background: rgba(249,115,22,.25); }
 .btn-save:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── 工单管理 ─────────────────────────────────────────────────────────────── */
+.session-create-box {
+  background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.sc-label { font-size: 11px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
+.sc-row { display: flex; gap: 8px; }
+.sc-input { flex: 1; }
+.btn-create-session {
+  padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace; font-weight: 700;
+  background: rgba(57,211,83,.1); border: 1px solid rgba(57,211,83,.3); color: #39d353;
+  transition: all .2s; flex-shrink: 0;
+}
+.btn-create-session:hover:not(:disabled) { background: rgba(57,211,83,.2); }
+.btn-create-session:disabled { opacity: .5; cursor: not-allowed; }
+
+.sc-link-box { display: flex; flex-direction: column; gap: 6px; }
+.sc-link-label { font-size: 10px; color: #484f58; font-family: 'JetBrains Mono', monospace; }
+.sc-link-wrap {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(88,166,255,.05); border: 1px solid rgba(88,166,255,.2);
+  border-radius: 6px; padding: 6px 10px;
+}
+.sc-link-text {
+  flex: 1; font-size: 11px; color: #58a6ff; font-family: 'JetBrains Mono', monospace;
+  word-break: break-all; min-width: 0;
+}
+.btn-copy {
+  padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace; flex-shrink: 0;
+  background: rgba(88,166,255,.1); border: 1px solid rgba(88,166,255,.3); color: #58a6ff;
+  transition: all .15s;
+}
+.btn-copy:hover { background: rgba(88,166,255,.2); }
+
+.session-list-header { font-size: 11px; color: #484f58; font-family: 'JetBrains Mono', monospace; margin-bottom: 8px; }
+
+.session-row {
+  border: 1px solid #21262d; border-radius: 8px; padding: 10px 12px;
+  margin-bottom: 8px; background: #0d1117; display: flex; flex-direction: column; gap: 6px;
+}
+.sr-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.sr-info { display: flex; align-items: center; gap: 8px; }
+.sr-name { font-size: 13px; font-weight: 600; color: #c9d1d9; }
+.sr-badge { font-size: 9px; padding: 1px 6px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; }
+.badge-active { background: rgba(57,211,83,.1); border: 1px solid rgba(57,211,83,.3); color: #39d353; }
+.badge-closed { background: rgba(125,133,144,.08); border: 1px solid #30363d; color: #484f58; }
+.sr-time { font-size: 10px; color: #484f58; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+.sr-meta { font-size: 11px; color: #7d8590; }
+.sr-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn-copy-link  { background: rgba(88,166,255,.08); border-color: rgba(88,166,255,.25); color: #58a6ff; }
+.btn-view-items { background: rgba(249,115,22,.08); border-color: rgba(249,115,22,.25); color: #f97316; }
+.btn-close-session { background: rgba(248,81,73,.06); border-color: rgba(248,81,73,.2); color: #f85149; }
+.btn-close-session:hover { background: rgba(248,81,73,.15); }
+
+.sr-items {
+  border-top: 1px solid #21262d; padding-top: 8px; margin-top: 2px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sr-items--empty { color: #484f58; font-size: 11px; }
+.sr-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px; background: #161b22; border-radius: 5px;
+}
+.sri-name { font-size: 12px; color: #c9d1d9; flex: 1; }
+.sri-cat  { font-size: 10px; color: #484f58; }
+.sri-qty  { font-size: 12px; color: #f97316; font-family: 'JetBrains Mono', monospace; }
 
 .overlay-enter-active, .overlay-leave-active { transition: opacity .25s; }
 .overlay-enter-from, .overlay-leave-to { opacity: 0; }

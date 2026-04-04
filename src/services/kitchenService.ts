@@ -1,4 +1,4 @@
-import type { Dish, DishCategory } from '@/types/kitchen'
+import type { Dish, DishCategory, CartItem, OrderSession } from '@/types/kitchen'
 import { cos, BUCKET, REGION } from './storageUpload'
 
 const DATA_KEY = 'kitchen/dishes.json'
@@ -119,4 +119,106 @@ export async function toggleAvailable(id: string): Promise<Dish> {
   const dish = dishes.find(d => d.id === id)
   if (!dish) throw new Error(`菜品 ${id} 不存在`)
   return update(id, { available: !dish.available })
+}
+
+// ── 工单（OrderSession）持久化 ────────────────────────────────────────────────
+const SESSIONS_DATA_KEY = 'kitchen/sessions.json'
+const LS_SESSIONS_KEY   = 'kitchen_sessions'
+
+async function loadSessionsFromCOS(): Promise<OrderSession[]> {
+  return new Promise((resolve) => {
+    cos.getObject(
+      { Bucket: BUCKET, Region: REGION, Key: SESSIONS_DATA_KEY },
+      (err, data) => {
+        if (err) { resolve([]); return }
+        try {
+          const text = typeof data.Body === 'string'
+            ? data.Body
+            : new TextDecoder().decode(data.Body as ArrayBuffer)
+          resolve(JSON.parse(text) as OrderSession[])
+        } catch {
+          resolve([])
+        }
+      }
+    )
+  })
+}
+
+async function saveSessionsToCOS(sessions: OrderSession[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    cos.putObject(
+      {
+        Bucket: BUCKET,
+        Region: REGION,
+        Key: SESSIONS_DATA_KEY,
+        Body: JSON.stringify(sessions, null, 2),
+        ContentType: 'application/json',
+      },
+      (err) => {
+        if (err) reject(new Error(`工单保存失败: ${err.message}`))
+        else resolve()
+      }
+    )
+  })
+}
+
+function loadSessionsFromLS(): OrderSession[] {
+  try {
+    const raw = localStorage.getItem(LS_SESSIONS_KEY)
+    if (raw) return JSON.parse(raw) as OrderSession[]
+  } catch { /* ignore */ }
+  return []
+}
+
+function saveSessionsToLS(sessions: OrderSession[]): void {
+  localStorage.setItem(LS_SESSIONS_KEY, JSON.stringify(sessions))
+}
+
+async function loadSessions(): Promise<OrderSession[]> {
+  return cosAvailable() ? loadSessionsFromCOS() : loadSessionsFromLS()
+}
+
+async function saveSessions(sessions: OrderSession[]): Promise<void> {
+  if (cosAvailable()) await saveSessionsToCOS(sessions)
+  else saveSessionsToLS(sessions)
+}
+
+// ── 工单公开 API ───────────────────────────────────────────────────────────────
+export async function getSessions(): Promise<OrderSession[]> {
+  return loadSessions()
+}
+
+export async function getSession(id: string): Promise<OrderSession | undefined> {
+  return (await loadSessions()).find(s => s.id === id)
+}
+
+export async function createSession(name: string): Promise<OrderSession> {
+  const sessions = await loadSessions()
+  const now = new Date().toISOString()
+  const newSession: OrderSession = {
+    id: `s${Date.now()}`,
+    name: name.trim(),
+    status: 'active',
+    items: [],
+    createdAt: now,
+    updatedAt: now,
+  }
+  await saveSessions([...sessions, newSession])
+  return newSession
+}
+
+export async function updateSessionCart(id: string, items: CartItem[]): Promise<void> {
+  const sessions = await loadSessions()
+  const idx = sessions.findIndex(s => s.id === id)
+  if (idx === -1) return
+  sessions[idx] = { ...sessions[idx], items, updatedAt: new Date().toISOString() }
+  await saveSessions(sessions)
+}
+
+export async function closeSession(id: string): Promise<void> {
+  const sessions = await loadSessions()
+  const idx = sessions.findIndex(s => s.id === id)
+  if (idx === -1) return
+  sessions[idx] = { ...sessions[idx], status: 'closed', updatedAt: new Date().toISOString() }
+  await saveSessions(sessions)
 }
