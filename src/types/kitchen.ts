@@ -31,3 +31,14 @@ export interface OrderPayload {
   note: string
   submittedAt: string
 }
+
+export type SessionStatus = 'active' | 'closed'
+
+export interface OrderSession {
+  id: string
+  name: string           // 工单名称，如"周五晚上烧烤"
+  status: SessionStatus
+  items: CartItem[]      // 共享的购物车内容
+  createdAt: string
+  updatedAt: string
+}
