@@ -44,6 +44,7 @@ async function pollRemote(): Promise<void> {
       return
     }
     // 只有没有待写入时才覆盖（double-check）
+    // 远端数据已包含 submittedQty 字段，直接整体替换即可保留已提交状态
     if (!syncDebounceTimer) {
       items.value = session.items
     }
@@ -63,6 +64,11 @@ export const cartCount = computed(() =>
 
 export const cartIsEmpty = computed(() => items.value.length === 0)
 
+/** 是否存在尚未推送给大厨的新增数量 */
+export const hasNewItems = computed(() =>
+  items.value.some(i => i.quantity > (i.submittedQty ?? 0))
+)
+
 export const sessionId   = computed(() => _currentSessionId.value)
 export const sessionName = computed(() => _currentSessionName.value)
 
@@ -73,7 +79,7 @@ export function addToCart(dish: Dish): void {
   if (existing) {
     existing.quantity++
   } else {
-    items.value.push({ dish, quantity: 1 })
+    items.value.push({ dish, quantity: 1, submittedQty: 0 })
   }
   scheduleSyncToRemote()
 }
@@ -86,14 +92,18 @@ export function removeFromCart(dishId: string): void {
 export function setQuantity(dishId: string, qty: number): void {
   if (qty <= 0) { removeFromCart(dishId); return }
   const item = items.value.find(i => i.dish.id === dishId)
-  if (item) item.quantity = qty
+  if (item) {
+    item.quantity = qty
+    // 如果减量到 submittedQty 以下，同步缩小 submittedQty（大厨以最终后台状态为准）
+    if ((item.submittedQty ?? 0) > qty) {
+      item.submittedQty = qty
+    }
+  }
   scheduleSyncToRemote()
 }
 
 export function clearCart(): void {
   items.value = []
-  // clearCart 在提交后由 submitOrder 调用，调用方需负责 stopSession()
-  // 此处仍触发同步，但 stopSession() 会及时取消定时器
   scheduleSyncToRemote()
 }
 
@@ -127,27 +137,55 @@ export function stopSession(): void {
   _currentSessionName.value = ''
 }
 
-// ── 防抖提交（300ms） ─────────────────────────────────────────────────────────
+// ── 增量提交（不清空购物车、不关闭工单） ─────────────────────────────────────
 let submitTimer: ReturnType<typeof setTimeout> | null = null
 
 export async function submitOrder(note: string): Promise<boolean> {
-  if (isSubmitting.value || cartIsEmpty.value) return false
+  if (isSubmitting.value) return false
   if (submitTimer) return false
+
+  // 计算本次真正新增的菜品（quantity - submittedQty）
+  const incremental = items.value
+    .filter(i => i.quantity > (i.submittedQty ?? 0))
+    .map(i => ({
+      ...i,
+      quantity: i.quantity - (i.submittedQty ?? 0),
+    }))
+
+  if (incremental.length === 0) {
+    lastError.value = '没有新增菜品，请先加菜再提交'
+    return false
+  }
 
   isSubmitting.value = true
   lastError.value = ''
-
   submitTimer = setTimeout(() => { submitTimer = null }, 300)
+
+  // 判断是否是追加提交（已有菜品曾被推送过）
+  const isFollowUp = items.value.some(i => (i.submittedQty ?? 0) > 0)
+  const notePrefix = isFollowUp ? '[追加] ' : ''
 
   try {
     const payload: OrderPayload = {
-      items: items.value.map(i => ({ ...i })),
-      note: note.trim(),
+      items: incremental,
+      note: (notePrefix + note.trim()).trim(),
       submittedAt: new Date().toISOString(),
     }
     await sendOrderPush(payload)
-    clearCart()
-    isCartOpen.value = false
+
+    // 推送成功后，将所有菜品的 submittedQty 更新为当前 quantity
+    items.value.forEach(item => {
+      item.submittedQty = item.quantity
+    })
+
+    // 同步带有 submittedQty 的最新购物车到远端（不清空、不关单）
+    if (_currentSessionId.value) {
+      await kitchenSvc.updateSessionCart(_currentSessionId.value, items.value)
+    }
+
+    // 取消防抖定时器，避免上面的 updateSessionCart 被重复覆盖
+    if (syncDebounceTimer) { clearTimeout(syncDebounceTimer); syncDebounceTimer = null }
+
     return true
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)

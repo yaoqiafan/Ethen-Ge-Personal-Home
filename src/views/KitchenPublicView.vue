@@ -151,18 +151,9 @@ onBeforeUnmount(() => {
 })
 
 // ── 提交回调 ───────────────────────────────────────────────────────────────────
-async function handleSubmitted() {
+function handleSubmitted() {
+  // 工单由大厨在后台手动结束，前端只发推送通知、保持购物车和工单 active
   toastRef.value?.show('点单已发送给大厨！🍳', 'success')
-  if (currentSid.value) {
-    const sid = currentSid.value
-    stopSession()  // 取消待写入的同步定时器
-    try {
-      await kitchenSvc.closeSession(sid)
-    } catch (e) {
-      console.warn('结束工单失败:', e)
-    }
-    currentSid.value = null
-  }
 }
 
 function handleError() {

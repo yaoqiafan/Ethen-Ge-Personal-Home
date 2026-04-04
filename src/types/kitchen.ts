@@ -24,6 +24,7 @@ export interface Dish {
 export interface CartItem {
   dish: Dish
   quantity: number
+  submittedQty?: number // 已成功推送给大厨的数量，undefined / 0 表示未提交
 }
 
 export interface OrderPayload {
