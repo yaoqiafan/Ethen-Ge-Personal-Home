@@ -12,9 +12,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // /nuget/* → http://localhost:8081/* （与 IIS 生产路径保持一致）
+      // /nuget/* → http://101.43.39.163:8081/* （与 IIS 生产路径保持一致；dev 目标为远端 BaGet）
       '/nuget': {
-        target: 'http://localhost:8081',
+        target: 'http://101.43.39.163:8081',
         rewrite: (path) => path.replace(/^\/nuget/, ''),
         changeOrigin: true,
         secure: false,
