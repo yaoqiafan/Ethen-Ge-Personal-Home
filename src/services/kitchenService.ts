@@ -222,3 +222,7 @@ export async function closeSession(id: string): Promise<void> {
   sessions[idx] = { ...sessions[idx], status: 'closed', updatedAt: new Date().toISOString() }
   await saveSessions(sessions)
 }
+
+export async function deleteSession(id: string): Promise<void> {
+  await saveSessions((await loadSessions()).filter(s => s.id !== id))
+}

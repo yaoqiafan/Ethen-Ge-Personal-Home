@@ -165,12 +165,14 @@
                   {{ expandedId === sess.id ? '收起' : '查看已点' }}
                 </button>
                 <button class="dr-btn btn-close-session" @click="doCloseSession(sess.id)">结束工单</button>
+                <button class="dr-btn btn-del" @click="doDeleteSession(sess.id)">删除</button>
               </div>
               <!-- 已结束工单操作 -->
               <div v-else class="sr-actions">
                 <button class="dr-btn btn-view-items" @click="toggleExpand(sess.id)">
                   {{ expandedId === sess.id ? '收起' : '查看已点' }}
                 </button>
+                <button class="dr-btn btn-del" @click="doDeleteSession(sess.id)">删除</button>
               </div>
               <!-- 展开的菜品列表 -->
               <div v-if="expandedId === sess.id && sess.items.length > 0" class="sr-items">
@@ -367,6 +369,18 @@ async function doCloseSession(id: string) {
     if (expandedId.value === id) expandedId.value = null
   } catch (e) {
     console.error('结束工单失败:', e)
+  }
+}
+
+async function doDeleteSession(id: string) {
+  if (!confirm('确认删除该工单？此操作不可恢复。')) return
+  try {
+    await kitchenSvc.deleteSession(id)
+    await loadSessions()
+    if (expandedId.value === id) expandedId.value = null
+    if (createdLink.value.includes(id)) createdLink.value = ''
+  } catch (e) {
+    console.error('删除工单失败:', e)
   }
 }
 
