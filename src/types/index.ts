@@ -14,15 +14,6 @@ export interface BootLine {
   delay: number
 }
 
-export interface AIModel {
-  id: string
-  name: string
-  provider: string
-  online: boolean
-  latency: number
-  color: string
-}
-
 export interface ProjectStatus {
   name: string
   version: string

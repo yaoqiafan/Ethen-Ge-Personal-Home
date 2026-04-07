@@ -19,15 +19,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      // /api/ai/* → http://localhost:18789/v1/*（IIS 生产环境由 web.config 注入 Authorization）
-      '/api/ai': {
-        target: 'http://localhost:18789',
-        rewrite: (path) => path.replace(/^\/api\/ai/, '/v1'),
-        changeOrigin: true,
-        headers: {
-          'Authorization': 'Bearer d6b3b76d798363c11793033e60a71ccc819242716b002149',
-        },
-      },
     },
   },
 })
