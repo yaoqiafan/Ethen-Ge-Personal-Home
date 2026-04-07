@@ -29,7 +29,7 @@
         :key="tab.id"
         class="tab-btn"
         :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
+        @click="handleTabClick(tab.id)"
       >
         <span class="tab-icon">{{ tab.icon }}</span>
         <span class="tab-label">{{ tab.label }}</span>
@@ -58,6 +58,41 @@
           key="protocol"
         />
       </KeepAlive>
+
+      <!-- 知识库系统 Tab：状态卡 + 文件管理器，双栏布局 -->
+      <div
+        v-if="activeTab === 'kb'"
+        key="kb"
+        class="kb-panel"
+      >
+        <!-- 区块标题 -->
+        <div class="kb-section-title">
+          <span class="kb-section-icon">◎</span>
+          系统核心状态
+        </div>
+        <PFSystemStatus :ws-connected="pfWsConnected" />
+
+        <div class="kb-divider" />
+
+        <div class="kb-section-title">
+          <span class="kb-section-icon">◫</span>
+          知识库文件管理
+        </div>
+        <PFFileManager />
+      </div>
+
+      <!-- 监控终端 Tab：全宽日志控制台 -->
+      <div
+        v-if="activeTab === 'monitor'"
+        key="monitor"
+        class="kb-panel"
+      >
+        <div class="kb-section-title">
+          <span class="kb-section-icon">▣</span>
+          实时监控终端
+        </div>
+        <PFMonitorConsole @connection-change="onPfConnectionChange" />
+      </div>
     </div>
 
   </div>
@@ -65,10 +100,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import NuGetDashboard from '@/components/framework/NuGetDashboard.vue'
-import GitHubPulse    from '@/components/framework/GitHubPulse.vue'
-import ReleasePanel   from '@/components/framework/ReleasePanel.vue'
-import ProtocolLab    from '@/components/framework/ProtocolLab.vue'
+import NuGetDashboard   from '@/components/framework/NuGetDashboard.vue'
+import GitHubPulse      from '@/components/framework/GitHubPulse.vue'
+import ReleasePanel     from '@/components/framework/ReleasePanel.vue'
+import ProtocolLab      from '@/components/framework/ProtocolLab.vue'
+import PFSystemStatus   from '@/components/framework/PFSystemStatus.vue'
+import PFFileManager    from '@/components/framework/PFFileManager.vue'
+import PFMonitorConsole from '@/components/framework/PFMonitorConsole.vue'
 
 interface Tab {
   id: string
@@ -82,10 +120,29 @@ const tabs: Tab[] = [
   { id: 'pulse',    icon: '⚡', label: '实时动态' },
   { id: 'release',  icon: '◫', label: 'Release 下载' },
   { id: 'protocol', icon: '⬡', label: '协议实验室', badge: 'WIP' },
+  { id: 'kb',       icon: '◎', label: '知识库系统' },
+  { id: 'monitor',  icon: '▣', label: '监控终端' },
 ]
 
-const activeTab = ref('nuget')
+const activeTab   = ref('nuget')
 const nugetOnline = ref(false)
+
+// PFMonitorConsole 上报的 WS 连接状态，透传给 PFSystemStatus
+const pfWsConnected = ref(false)
+
+function onPfConnectionChange(connected: boolean) {
+  pfWsConnected.value = connected
+}
+
+// 知识库 Tab 激活时记录，用于懒加载语义（KeepAlive 已缓存，此处备用）
+const kbEverActivated      = ref(false)
+const monitorEverActivated = ref(false)
+
+function handleTabClick(id: string) {
+  activeTab.value = id
+  if (id === 'kb')      kbEverActivated.value      = true
+  if (id === 'monitor') monitorEverActivated.value = true
+}
 </script>
 
 <style scoped>
@@ -184,5 +241,36 @@ const nugetOnline = ref(false)
 /* ── Tab 内容 ────────────────────────────── */
 .tab-content {
   min-height: 400px;
+}
+
+/* ── 知识库 / 监控终端 面板容器 ────────────── */
+.kb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.kb-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #7d8590;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.kb-section-icon {
+  color: #39d353;
+  font-size: 12px;
+}
+
+.kb-divider {
+  height: 1px;
+  background: #21262d;
+  margin: 2px 0;
 }
 </style>
