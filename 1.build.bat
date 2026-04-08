@@ -34,7 +34,7 @@ echo.
 echo         ^<!-- BaGet NuGet 服务代理 --^>
 echo         ^<rule name="BaGet Proxy" stopProcessing="true"^>
 echo           ^<match url="^^nuget/?(.*)" /^>
-echo           ^<action type="Rewrite" url="http://localhost:8081/{R:1}" /^>
+echo           ^<action type="Rewrite" url="http://101.43.39.163:8081/{R:1}" /^>
 echo         ^</rule^>
 echo.
 echo         ^<!-- OpenClaw Gateway AI 接口代理（后端注入 Authorization，前端无需携带 Token） --^>
