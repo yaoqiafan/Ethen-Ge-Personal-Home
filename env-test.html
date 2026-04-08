@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>环境变量测试</title>
+</head>
+<body>
+    <h1>环境变量实际值测试</h1>
+    <div id="result"></div>
+    
+    <script type="module">
+        // 模拟Vue中的import.meta.env访问
+        // 注意：实际Vue项目中是通过Vite注入的
+        
+        const resultDiv = document.getElementById('result');
+        
+        // 测试当前页面的WebSocket连接
+        resultDiv.innerHTML += '<h3>1. 测试WebSocket连接...</h3>';
+        
+        // 测试直接连接适配器
+        const wsDirect = new WebSocket('ws://localhost:3002');
+        wsDirect.onopen = () => {
+            resultDiv.innerHTML += '<p style="color:green">✅ 直接连接 ws://localhost:3002 成功</p>';
+            wsDirect.close();
+        };
+        wsDirect.onerror = (e) => {
+            resultDiv.innerHTML += `<p style="color:red">❌ 直接连接 ws://localhost:3002 失败: ${e.type}</p>`;
+        };
+        
+        // 测试通过Vite代理连接
+        const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsProxy = `${wsProto}//${window.location.host}/api/v1/ws`;
+        resultDiv.innerHTML += `<h3>2. 测试代理连接: ${wsProxy}</h3>`;
+        
+        const wsViaProxy = new WebSocket(wsProxy);
+        wsViaProxy.onopen = () => {
+            resultDiv.innerHTML += `<p style="color:green">✅ 代理连接 ${wsProxy} 成功</p>`;
+            wsViaProxy.close();
+        };
+        wsViaProxy.onerror = (e) => {
+            resultDiv.innerHTML += `<p style="color:red">❌ 代理连接 ${wsProxy} 失败: ${e.type}</p>`;
+        };
+        
+        // 显示当前页面信息
+        resultDiv.innerHTML += '<h3>3. 当前页面信息</h3>';
+        resultDiv.innerHTML += `<p>URL: ${window.location.href}</p>`;
+        resultDiv.innerHTML += `<p>协议: ${window.location.protocol}</p>`;
+        resultDiv.innerHTML += `<p>主机: ${window.location.host}</p>`;
+        resultDiv.innerHTML += `<p>来源: ${window.location.origin}</p>`;
+        
+        // 计算WebSocket URL（模拟前端代码逻辑）
+        resultDiv.innerHTML += '<h3>4. 计算的WebSocket URL</h3>';
+        const override = ''; // 模拟 VITE_PF_WS_URL 为空
+        const computedUrl = override 
+            ? override 
+            : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws`;
+        resultDiv.innerHTML += `<p>计算的URL: ${computedUrl}</p>`;
+        resultDiv.innerHTML += `<p>逻辑: VITE_PF_WS_URL="${override}" ? 使用覆盖值 : 基于页面URL构建</p>`;
+    </script>
+</body>
+</html>

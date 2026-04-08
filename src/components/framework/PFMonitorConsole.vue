@@ -109,6 +109,13 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useOpenClawMonitor as usePFMonitor, pfMonitoringService, pfGitHubService } from '@/services/openclawService'
 import type { LogEntry } from '@/services/openclawService'
 
+// 环境变量检查
+console.log('=== PFMonitorConsole 环境变量 ===')
+console.log('VITE_PF_WS_URL:', import.meta.env.VITE_PF_WS_URL)
+console.log('VITE_PF_API_URL:', import.meta.env.VITE_PF_API_URL)
+console.log('MODE:', import.meta.env.MODE)
+console.log('当前页面:', window.location.href)
+
 // ── Emits ──────────────────────────────────────────────────────────────────────
 const emit = defineEmits<{
   /** 连接状态变化时向父组件上报，用于 PFSystemStatus 的 wsConnected prop */

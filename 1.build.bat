@@ -46,6 +46,22 @@ echo           ^</serverVariables^>
 echo           ^<action type="Rewrite" url="http://127.0.0.1:18789/v1/{R:1}" /^>
 echo         ^</rule^>
 echo.
+echo         ^<!-- PF API 适配器代理（HTTP REST API）--^>
+echo         ^<rule name="PF API Proxy" stopProcessing="true"^>
+echo           ^<match url="^^api/v1/(.*)" /^>
+echo           ^<action type="Rewrite" url="http://localhost:3001/api/v1/{R:1}" /^>
+echo         ^</rule^>
+echo.
+echo         ^<!-- PF WebSocket 适配器代理 --^>
+echo         ^<rule name="PF WebSocket Proxy" stopProcessing="true"^>
+echo           ^<match url="^^api/v1/ws" /^>
+echo           ^<action type="Rewrite" url="http://localhost:3002" /^>
+echo           ^<serverVariables^>
+echo             ^<set name="HTTP_UPGRADE" value="websocket" /^>
+echo             ^<set name="HTTP_CONNECTION" value="upgrade" /^>
+echo           ^</serverVariables^>
+echo         ^</rule^>
+echo.
 echo         ^<!-- Vue Router History Mode 兜底：非文件/目录请求一律回落到 index.html --^>
 echo         ^<rule name="Vue History Mode" stopProcessing="true"^>
 echo           ^<match url="(.*)" /^>

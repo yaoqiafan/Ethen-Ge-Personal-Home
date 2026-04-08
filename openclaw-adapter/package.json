@@ -1,19 +1,31 @@
 {
   "name": "openclaw-adapter",
-  "version": "1.0.0",
-  "description": "OpenClaw适配层服务，连接Vue前端和OpenClaw网关",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "OpenClaw适配器 - 连接Vue前端和OpenClaw网关 (生产环境)",
+  "main": "complete-server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node complete-server.js",
+    "dev": "nodemon complete-server.js",
+    "test": "node test-connection.js"
   },
   "dependencies": {
-    "axios": "^1.6.0",
     "cors": "^2.8.6",
     "express": "^4.22.1",
     "ws": "^8.20.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "openclaw",
+    "adapter",
+    "api",
+    "websocket",
+    "production"
+  ],
+  "author": "OpenClaw Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
