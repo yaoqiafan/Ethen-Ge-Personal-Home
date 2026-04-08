@@ -19,6 +19,19 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // OpenClaw适配器代理
+      '/api/v1': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1/, '/api/v1'),
+      },
+      // OpenClaw WebSocket代理
+      '/api/v1/ws': {
+        target: 'ws://localhost:3002',
+        ws: true,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1\/ws/, ''),
+      },
     },
   },
 })
