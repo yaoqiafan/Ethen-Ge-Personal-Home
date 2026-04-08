@@ -63,8 +63,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { pfSystemService } from '@/services/pfKnowledgeService'
-import type { SystemStatus } from '@/services/pfKnowledgeService'
+import { pfSystemService } from '@/services/openclawService'
+import type { SystemStatus } from '@/services/openclawService'
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 const props = defineProps<{
@@ -161,7 +161,7 @@ async function handleHealthCheck() {
     const res = await pfSystemService.healthCheck()
     const ok = res.status === 'healthy'
     diagMessage.value = ok
-      ? `健康检查通过：数据库 ${res.checks.database?.latency ?? '?'}ms，磁盘和网络均正常`
+      ? `健康检查通过：数据库 ${(res.checks?.database as { latency?: number } | undefined)?.latency ?? '?'}ms，磁盘和网络均正常`
       : `健康检查发现问题：${res.status}`
   } catch (e) {
     diagMessage.value = `健康检查失败: ${(e as Error).message}`

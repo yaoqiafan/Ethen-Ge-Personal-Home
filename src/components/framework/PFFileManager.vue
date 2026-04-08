@@ -171,8 +171,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { pfKnowledgeService } from '@/services/pfKnowledgeService'
-import type { FileItem, DirectoryItem, SearchResult } from '@/services/pfKnowledgeService'
+import { pfKnowledgeService } from '@/services/openclawService'
+import type { FileItem, DirectoryItem, SearchResult } from '@/services/openclawService'
 
 // ── 状态 ───────────────────────────────────────────────────────────────────────
 const loading        = ref(false)

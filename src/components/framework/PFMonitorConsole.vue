@@ -106,8 +106,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
-import { usePFMonitor, pfMonitoringService, pfGitHubService } from '@/services/pfKnowledgeService'
-import type { LogEntry } from '@/services/pfKnowledgeService'
+import { useOpenClawMonitor as usePFMonitor, pfMonitoringService, pfGitHubService } from '@/services/openclawService'
+import type { LogEntry } from '@/services/openclawService'
 
 // ── Emits ──────────────────────────────────────────────────────────────────────
 const emit = defineEmits<{

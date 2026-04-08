@@ -20,19 +20,22 @@ export default defineConfig({
         secure: false,
       },
 
-      // OpenClaw WebSocket代理（需在 /api/v1 之前，Vite 按顺序匹配，更具体的路径优先）
+      // OpenClaw WebSocket 代理（需在 /api/v1 之前，Vite 按顺序匹配，更具体的路径优先）
+      // dev:  /api/v1/ws → ws://localhost:18789
+      // prod: IIS rewrite /api/v1/ws → ws://localhost:18789
       '/api/v1/ws': {
-        target: 'ws://localhost:3002',
+        target: 'ws://localhost:18789',
         ws: true,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v1\/ws/, ''),
+        rewrite: (path) => path.replace(/^\/api\/v1\/ws/, '/ws'),
       },
 
-      // OpenClaw HTTP REST 适配器代理
+      // OpenClaw HTTP REST 网关代理
+      // dev:  /api/v1/* → http://localhost:18789/api/v1/*
+      // prod: IIS rewrite /api/v1/* → http://localhost:18789/api/v1/*
       '/api/v1': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:18789',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v1/, '/api/v1'),
       },
     },
   },
