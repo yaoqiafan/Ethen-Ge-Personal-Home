@@ -14,30 +14,28 @@ import { ref, onUnmounted } from 'vue'
 // ─── 环境配置 ─────────────────────────────────────────────────────────────────
 //
 // HTTP：
-//   dev  → Vite proxy /api/pf/v1  →  http://localhost:8080/api/v1  （规避 CORS）
-//   prod → IIS rewrite /pf/v1     →  http://localhost:8080/api/v1  （同源，无 CORS）
+//   dev  → Vite proxy /api/v1  →  OpenClaw 适配器 http://localhost:3001/api/v1
+//   prod → IIS rewrite /api/v1 →  OpenClaw 适配器（同源，无 CORS）
 //
 // WebSocket：
-//   dev  → Vite proxy /api/pf-ws  →  ws://localhost:8081           （规避 CORS）
-//   prod → IIS rewrite /pf-ws     →  ws://localhost:8081           （同源，无 CORS）
+//   dev  → Vite proxy /api/v1/ws  →  ws://localhost:3002
+//   prod → IIS rewrite /api/v1/ws →  ws://localhost:3002（同源，无 CORS）
 //
 // 可在 .env 文件中通过 VITE_PF_API_URL / VITE_PF_WS_URL 完全覆盖默认值。
 
-/** HTTP REST 基础地址 */
-const BASE_URL = (import.meta.env.VITE_PF_API_URL as string | undefined)
-  ?? (import.meta.env.DEV ? '/api/pf/v1' : '/pf/v1')
+/** HTTP REST 基础地址（相对路径，走 Vite proxy / IIS rewrite） */
+const BASE_URL = (import.meta.env.VITE_PF_API_URL as string | undefined) ?? '/api/v1'
 
 /**
  * WebSocket 地址。
- * WS URL 必须是绝对地址，因此在运行时根据当前页面协议动态构建，
- * 确保 HTTPS 页面使用 wss://，HTTP 页面使用 ws://。
+ * WS URL 必须是绝对地址，运行时根据当前页面协议动态构建，
+ * 确保 HTTPS 页面自动使用 wss://，HTTP 页面使用 ws://。
  */
 function buildWsUrl(): string {
   const override = import.meta.env.VITE_PF_WS_URL as string | undefined
   if (override) return override
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsPath  = import.meta.env.DEV ? '/api/pf-ws/api/v1/ws' : '/pf-ws/api/v1/ws'
-  return `${wsProto}//${window.location.host}${wsPath}`
+  return `${wsProto}//${window.location.host}/api/v1/ws`
 }
 
 const WS_URL = buildWsUrl()

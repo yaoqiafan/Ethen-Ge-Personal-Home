@@ -20,25 +20,20 @@ export default defineConfig({
         secure: false,
       },
 
-      // PF 知识库 HTTP REST：/api/pf/* → http://localhost:8080/api/*
-      // 生产环境由 IIS URL Rewrite 将 /pf/* 转发至 http://localhost:8080/*（同源，无 CORS）
-      '/api/pf': {
-        target: 'http://localhost:8080',
-        rewrite: (path) => path.replace(/^\/api\/pf/, '/api'),
+      // OpenClaw WebSocket代理（需在 /api/v1 之前，Vite 按顺序匹配，更具体的路径优先）
+      '/api/v1/ws': {
+        target: 'ws://localhost:3002',
+        ws: true,
         changeOrigin: true,
-        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/v1\/ws/, ''),
       },
 
-      // PF 知识库 WebSocket：/api/pf-ws/* → ws://localhost:8081/*
-      // Vite 在收到 Upgrade: websocket 请求头时自动升级为 WS 代理
-      '/api/pf-ws': {
-        target: 'ws://localhost:8081',
-        rewrite: (path) => path.replace(/^\/api\/pf-ws/, ''),
+      // OpenClaw HTTP REST 适配器代理
+      '/api/v1': {
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        secure: false,
-        ws: true,
+        rewrite: (path) => path.replace(/^\/api\/v1/, '/api/v1'),
       },
     },
   },
 })
-
