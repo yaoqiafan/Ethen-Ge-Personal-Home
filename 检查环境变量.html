@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>环境变量检查</title>
+    <style>
+        body { font-family: monospace; margin: 20px; }
+        .var { margin: 5px 0; padding: 5px; background: #f5f5f5; }
+        .found { color: green; }
+        .not-found { color: red; }
+        .section { margin: 20px 0; border: 1px solid #ccc; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>环境变量检查</h1>
+    
+    <div class="section">
+        <h2>1. 当前页面信息</h2>
+        <div id="pageInfo"></div>
+    </div>
+    
+    <div class="section">
+        <h2>2. 环境变量（通过import.meta.env）</h2>
+        <div id="envVars"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3. API测试</h2>
+        <button onclick="testAPI()">测试API连接</button>
+        <div id="apiTest"></div>
+    </div>
+    
+    <div class="section">
+        <h2>4. WebSocket测试</h2>
+        <button onclick="testWebSocket()">测试WebSocket</button>
+        <div id="wsTest"></div>
+    </div>
+    
+    <div class="section">
+        <h2>5. 计算出的配置</h2>
+        <div id="computedConfig"></div>
+    </div>
+
+    <script type="module">
+        // 检查环境变量（在Vue项目中是通过import.meta.env访问的）
+        // 这里我们模拟检查
+        
+        // 1. 页面信息
+        document.getElementById('pageInfo').innerHTML = `
+            <div class="var">URL: ${window.location.href}</div>
+            <div class="var">协议: ${window.location.protocol}</div>
+            <div class="var">主机: ${window.location.host}</div>
+            <div class="var">路径: ${window.location.pathname}</div>
+        `;
+        
+        // 2. 模拟Vite环境变量（实际在Vue中是通过import.meta.env访问）
+        // 这些值应该与.env.development文件中的一致
+        const envVars = {
+            'VITE_PF_API_URL': '/api/v1',
+            'VITE_PF_WS_URL': '',
+            'VITE_OPENCLAW_TOKEN': 'd35fefbd61c79bac0feedcc07ce68132f38b2c287a2fb439',
+            'VITE_ICP_NUMBER': '苏ICP备2024123968号',
+            'MODE': 'development',
+            'DEV': true,
+            'PROD': false
+        };
+        
+        let envHtml = '';
+        for (const [key, value] of Object.entries(envVars)) {
+            const hasValue = value !== undefined && value !== '';
+            envHtml += `<div class="var ${hasValue ? 'found' : 'not-found'}">
+                ${key}: <strong>${hasValue ? value : '(空或未定义)'}</strong>
+            </div>`;
+        }
+        document.getElementById('envVars').innerHTML = envHtml;
+        
+        // 3. 计算出的配置（模拟pfKnowledgeService.ts中的逻辑）
+        function buildWsUrl() {
+            const override = envVars.VITE_PF_WS_URL;
+            if (override) return override;
+            const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${wsProto}//${window.location.host}/api/v1/ws`;
+        }
+        
+        const computedConfig = {
+            BASE_URL: envVars.VITE_PF_API_URL || '/api/v1',
+            WS_URL: buildWsUrl(),
+            computedWsUrl: buildWsUrl()
+        };
+        
+        let configHtml = '';
+        for (const [key, value] of Object.entries(computedConfig)) {
+            configHtml += `<div class="var">
+                ${key}: <strong>${value}</strong>
+            </div>`;
+        }
+        document.getElementById('computedConfig').innerHTML = configHtml;
+        
+        // 4. API测试函数
+        async function testAPI() {
+            const resultDiv = document.getElementById('apiTest');
+            resultDiv.innerHTML = '<div class="var">测试中...</div>';
+            
+            try {
+                // 测试健康检查
+                const healthResponse = await fetch('http://localhost:3001/health');
+                const healthData = await healthResponse.json();
+                
+                // 测试系统状态API（通过Vite代理）
+                const statusResponse = await fetch('/api/v1/system/status');
+                const statusData = await statusResponse.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="var found">✅ 适配器健康检查: ${healthData.message}</div>
+                    <div class="var found">✅ 系统状态API: ${statusData.message}</div>
+                    <div class="var">系统名称: ${statusData.data?.system?.name || '未知'}</div>
+                    <div class="var">系统状态: ${statusData.data?.system?.status || '未知'}</div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="var not-found">❌ API测试失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 5. WebSocket测试函数
+        function testWebSocket() {
+            const resultDiv = document.getElementById('wsTest');
+            resultDiv.innerHTML = '<div class="var">连接中...</div>';
+            
+            // 计算WebSocket URL（模拟前端逻辑）
+            const wsUrl = computedConfig.computedWsUrl;
+            const ws = new WebSocket(wsUrl);
+            let timeout;
+            
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                resultDiv.innerHTML = `<div class="var found">✅ WebSocket连接成功: ${wsUrl}</div>`;
+                ws.send(JSON.stringify({ type: 'test', message: 'Hello' }));
+                setTimeout(() => ws.close(), 1000);
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    resultDiv.innerHTML += `<div class="var">收到消息: ${data.type || '未知类型'}</div>`;
+                } catch (e) {
+                    resultDiv.innerHTML += `<div class="var">收到消息: ${event.data}</div>`;
+                }
+            };
+            
+            ws.onerror = (error) => {
+                clearTimeout(timeout);
+                resultDiv.innerHTML = `<div class="var not-found">❌ WebSocket错误: ${error.type}</div>`;
+            };
+            
+            ws.onclose = () => {
+                clearTimeout(timeout);
+                resultDiv.innerHTML += `<div class="var">连接已关闭</div>`;
+            };
+            
+            timeout = setTimeout(() => {
+                resultDiv.innerHTML = `<div class="var not-found">❌ WebSocket连接超时</div>`;
+                if (ws.readyState === WebSocket.CONNECTING) {
+                    ws.close();
+                }
+            }, 5000);
+        }
+        
+        // 页面加载时自动测试API
+        setTimeout(testAPI, 1000);
+    </script>
+</body>
+</html>

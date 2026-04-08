@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenClaw连接调试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        h2 { color: #555; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .test-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .test-btn:hover { background: #0056b3; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 4px; overflow: auto; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 OpenClaw连接调试工具</h1>
+        
+        <div class="card">
+            <h2>1. 环境检查</h2>
+            <div id="envCheck"></div>
+            <button class="test-btn" onclick="checkEnvironment()">检查环境</button>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <h2>2. 适配器测试</h2>
+                <p>测试适配器服务是否运行</p>
+                <button class="test-btn" onclick="testAdapter()">测试适配器</button>
+                <div id="adapterTest"></div>
+            </div>
+            
+            <div class="card">
+                <h2>3. Vite代理测试</h2>
+                <p>测试Vite开发服务器代理</p>
+                <button class="test-btn" onclick="testViteProxy()">测试代理</button>
+                <div id="viteTest"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>4. WebSocket测试</h2>
+            <p>测试WebSocket连接</p>
+            <button class="test-btn" onclick="testWebSocket()">测试WebSocket</button>
+            <div id="wsTest"></div>
+        </div>
+        
+        <div class="card">
+            <h2>5. 完整API测试</h2>
+            <p>测试所有PF API端点</p>
+            <button class="test-btn" onclick="testAllAPIs()">测试所有API</button>
+            <div id="apiTest"></div>
+        </div>
+        
+        <div class="card">
+            <h2>6. 配置信息</h2>
+            <div id="configInfo"></div>
+            <button class="test-btn" onclick="showConfig()">显示配置</button>
+        </div>
+        
+        <div class="card">
+            <h2>7. 问题诊断</h2>
+            <h3>常见问题：</h3>
+            <ul>
+                <li><strong>适配器未运行</strong>：运行 <code>node simple-server.js</code></li>
+                <li><strong>端口被占用</strong>：修改server.js中的端口号</li>
+                <li><strong>环境变量未加载</strong>：检查.env.development文件</li>
+                <li><strong>Vite代理配置错误</strong>：检查vite.config.ts</li>
+                <li><strong>CORS问题</strong>：确保使用Vite代理或配置CORS</li>
+            </ul>
+            
+            <h3>快速修复：</h3>
+            <ol>
+                <li>确保适配器运行：<code>http://localhost:3001/health</code> 返回成功</li>
+                <li>确保Vue前端运行：<code>http://localhost:5173</code> 可访问</li>
+                <li>检查浏览器控制台错误信息</li>
+                <li>使用此页面进行逐步测试</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function setResult(elementId, success, message) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<p class="${success ? 'success' : 'error'}"><strong>${success ? '✅' : '❌'}</strong> ${message}</p>`;
+        }
+        
+        function addResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'success';
+            element.innerHTML += `<p class="${className}">${message}</p>`;
+        }
+        
+        function clearResult(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+        
+        async function checkEnvironment() {
+            clearResult('envCheck');
+            addResult('envCheck', '检查当前环境...', 'info');
+            
+            // 检查页面信息
+            addResult('envCheck', `页面URL: ${window.location.href}`, 'info');
+            addResult('envCheck', `协议: ${window.location.protocol}`, 'info');
+            addResult('envCheck', `主机: ${window.location.host}`, 'info');
+            
+            // 检查localStorage中的配置（如果有）
+            const savedConfig = localStorage.getItem('openclaw-config');
+            if (savedConfig) {
+                addResult('envCheck', `找到保存的配置`, 'info');
+            }
+            
+            addResult('envCheck', '环境检查完成', 'success');
+        }
+        
+        async function testAdapter() {
+            clearResult('adapterTest');
+            addResult('adapterTest', '测试适配器连接...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:3001/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('adapterTest', `✅ 适配器运行正常: ${data.message}`, 'success');
+                    addResult('adapterTest', `HTTP端口: ${data.services?.http || '3001'}`, 'info');
+                    addResult('adapterTest', `WebSocket端口: ${data.services?.websocket || '3002'}`, 'info');
+                } else {
+                    addResult('adapterTest', `❌ 适配器HTTP错误: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('adapterTest', `❌ 无法连接到适配器: ${error.message}`, 'error');
+                addResult('adapterTest', '请确保适配器正在运行: node simple-server.js', 'warning');
+            }
+        }
+        
+        async function testViteProxy() {
+            clearResult('viteTest');
+            addResult('viteTest', '测试Vite代理...', 'info');
+            
+            try {
+                // 测试通过Vite代理访问API
+                const response = await fetch('/api/v1/system/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult('viteTest', `✅ Vite代理正常: ${data.message}`, 'success');
+                    addResult('viteTest', `系统: ${data.data?.system?.name || '未知'}`, 'info');
+                    addResult('viteTest', `状态: ${data.data?.system?.status || '未知'}`, 'info');
+                } else {
+                    addResult('viteTest', `❌ Vite代理错误: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult('viteTest', `❌ Vite代理失败: ${error.message}`, 'error');
+                addResult('viteTest', '可能的原因：', 'warning');
+                addResult('viteTest', '1. Vue前端未运行 (npm run dev)', 'warning');
+                addResult('viteTest', '2. Vite代理配置错误', 'warning');
+                addResult('viteTest', '3. 适配器未运行', 'warning');
+            }
+        }
+        
+        function testWebSocket() {
+            clearResult('wsTest');
+            addResult('wsTest', '测试WebSocket连接...', 'info');
+            
+            // 计算WebSocket URL（模拟前端逻辑）
+            const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProto}//${window.location.host}/api/v1/ws`;
+            const directWsUrl = 'ws://localhost:3002';
+            
+            addResult('wsTest', `尝试连接: ${wsUrl}`, 'info');
+            addResult('wsTest', `直接连接: ${directWsUrl}`, 'info');
+            
+            const ws = new WebSocket(wsUrl);
+            let timeout;
+            
+            ws.onopen = () => {
+                clearTimeout(timeout);
+                addResult('wsTest', '✅ WebSocket连接成功！', 'success');
+                ws.send(JSON.stringify({ type: 'test', message: '连接测试' }));
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addResult('wsTest', `收到消息: ${data.type} - ${data.message || '无消息'}`, 'info');
+                } catch {
+                    addResult('wsTest', `收到消息: ${event.data}`, 'info');
+                }
+            };
+            
+            ws.onerror = (error) => {
+                addResult('wsTest', `❌ WebSocket错误: ${error.type}`, 'error');
+                // 尝试直接连接
+                testDirectWebSocket();
+            };
+            
+            ws.onclose = () => {
+                addResult('wsTest', '连接已关闭', 'info');
+            };
+            
+            timeout = setTimeout(() => {
+                addResult('wsTest', '⚠️ WebSocket连接超时', 'warning');
+                ws.close();
+            }, 5000);
+            
+            function testDirectWebSocket() {
+                addResult('wsTest', '尝试直接连接适配器WebSocket...', 'info');
+                const directWs = new WebSocket(directWsUrl);
+                
+                directWs.onopen = () => {
+                    addResult('wsTest', '✅ 直接连接成功！问题可能在Vite代理', 'success');
+                    directWs.close();
+                };
+                
+                directWs.onerror = () => {
+                    addResult('wsTest', '❌ 直接连接也失败，WebSocket服务器可能未运行', 'error');
+                };
+            }
+        }
+        
+        async function testAllAPIs() {
+            clearResult('apiTest');
+            addResult('apiTest', '开始测试所有API...', 'info');
+            
+            const apis = [
+                { name: '系统状态', url: '/api/v1/system/status' },
+                { name: '健康检查', url: '/api/v1/health' },
+                { name: '文件列表', url: '/api/v1/knowledge/files' },
+                { name: '监控日志', url: '/api/v1/monitoring/logs?limit=5' }
+            ];
+            
+            for (const api of apis) {
+                addResult('apiTest', `测试 ${api.name}...`, 'info');
+                try {
+                    const response = await fetch(api.url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        addResult('apiTest', `✅ ${api.name}: ${data.message || '成功'}`, 'success');
+                    } else {
+                        addResult('apiTest', `❌ ${api.name}: HTTP ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    addResult('apiTest', `❌ ${api.name}: ${error.message}`, 'error');
+                }
+                await new Promise(resolve => setTimeout(resolve, 500)); // 延迟避免请求过快
+            }
+            
+            addResult('apiTest', '所有API测试完成', 'success');
+        }
+        
+        function showConfig() {
+            clearResult('configInfo');
+            
+            const config = {
+                当前时间: new Date().toLocaleString(),
+                页面信息: {
+                    完整URL: window.location.href,
+                    协议: window.location.protocol,
+                    主机: window.location.host,
+                    来源: window.location.origin
+                },
+                适配器配置: {
+                    HTTP: 'http://localhost:3001',
+                    WebSocket: 'ws://localhost:3002',
+                    健康检查: 'http://localhost:3001/health'
+                },
+                Vite代理配置: {
+                    API代理: '/api/v1 → http://localhost:3001',
+                    WS代理: '/api/v1/ws → ws://localhost:3002'
+                },
+                计算出的WebSocketURL: (() => {
+                    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    return `${wsProto}//${window.location.host}/api/v1/ws`;
+                })()
+            };
+            
+            document.getElementById('configInfo').innerHTML = `
+                <pre>${JSON.stringify(config, null, 2)}</pre>
+            `;
+        }
+        
+        // 页面加载时自动运行基本检查
+        window.onload = function() {
+            setTimeout(() => {
+                checkEnvironment();
+                testAdapter();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const WebSocket = require('ws');
-const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 const PORT = 3001;
