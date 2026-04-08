@@ -19,6 +19,25 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+
+      // PF 知识库 HTTP REST：/api/pf/* → http://localhost:8080/api/*
+      // 生产环境由 IIS URL Rewrite 将 /pf/* 转发至 http://localhost:8080/*（同源，无 CORS）
+      '/api/pf': {
+        target: 'http://localhost:8080',
+        rewrite: (path) => path.replace(/^\/api\/pf/, '/api'),
+        changeOrigin: true,
+        secure: false,
+      },
+
+      // PF 知识库 WebSocket：/api/pf-ws/* → ws://localhost:8081/*
+      // Vite 在收到 Upgrade: websocket 请求头时自动升级为 WS 代理
+      '/api/pf-ws': {
+        target: 'ws://localhost:8081',
+        rewrite: (path) => path.replace(/^\/api\/pf-ws/, ''),
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
     },
   },
 })
