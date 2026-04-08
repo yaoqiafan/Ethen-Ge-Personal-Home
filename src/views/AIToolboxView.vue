@@ -250,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   PROVIDER_PRESETS,
   getActiveConfig, getCurrentProviderId, setCurrentProviderId,
@@ -259,7 +259,7 @@ import {
   loadConversations, saveConversations,
   getActiveConversationId, setActiveConversationId, createConversation,
 } from '@/services/aiService'
-import type { ModelOption, Conversation, StoredMessage, AttachmentMeta, ApiMessage, ApiContentPart } from '@/services/aiService'
+import type { ModelOption, Conversation, StoredMessage, ApiMessage, ApiContentPart } from '@/services/aiService'
 
 // ── 内部类型 ──────────────────────────────────────────────────────────────────
 interface ContentPart { type: 'text' | 'code'; content: string; language?: string }
