@@ -31,10 +31,11 @@
             v-for="item in cartItems"
             :key="item.dish.id"
             class="cart-item"
-            :class="{ 'cart-item--submitted': (item.submittedQty ?? 0) > 0 }"
+            :class="{ 'cart-item--submitted': (item.submittedQty ?? 0) > 0, 'cart-item--custom': item.dish.isCustom }"
           >
             <div class="ci-img-wrap">
-              <img v-if="item.dish.imageUrl" :src="item.dish.imageUrl" :alt="item.dish.name" class="ci-img" @error="(e) => ((e.target as HTMLImageElement).style.display='none')" />
+              <span v-if="item.dish.isCustom" class="ci-emoji">✏️</span>
+              <img v-else-if="item.dish.imageUrl" :src="item.dish.imageUrl" :alt="item.dish.name" class="ci-img" @error="(e) => ((e.target as HTMLImageElement).style.display='none')" />
               <span v-else class="ci-emoji">{{ CATEGORY_ICONS[item.dish.category] }}</span>
             </div>
             <div class="ci-info">
@@ -46,7 +47,10 @@
                   +{{ item.quantity - (item.submittedQty ?? 0) }} 待提交
                 </span>
               </div>
-              <div v-else class="ci-cat">{{ item.dish.category }}</div>
+              <div v-else class="ci-cat">
+                <span v-if="item.dish.isCustom" class="ci-custom-badge">自定义</span>
+                <span v-else>{{ item.dish.category }}</span>
+              </div>
             </div>
             <div class="ci-qty">
               <button class="qty-btn" @click="setQuantity(item.dish.id, item.quantity - 1)">−</button>
@@ -54,6 +58,21 @@
               <button class="qty-btn" @click="setQuantity(item.dish.id, item.quantity + 1)">＋</button>
             </div>
             <button class="ci-remove" @click="removeFromCart(item.dish.id)">✕</button>
+          </div>
+        </div>
+
+        <!-- 自定义点菜区 -->
+        <div class="custom-dish-box">
+          <div class="custom-dish-label">✏ 菜单里没有？自己写</div>
+          <div class="custom-dish-row">
+            <input
+              v-model="customDishInput"
+              class="custom-dish-input"
+              placeholder="填写想吃的菜名…"
+              maxlength="30"
+              @keydown.enter.prevent="handleAddCustom"
+            />
+            <button class="btn-add-custom" :disabled="!customDishInput.trim()" @click="handleAddCustom">添加</button>
           </div>
         </div>
 
@@ -95,11 +114,19 @@ import {
   cartItems, cartCount, cartIsEmpty, cartOpen, hasNewItems,
   closeCart, removeFromCart, setQuantity,
   submitOrder, submitting, submitError,
+  addCustomDish,
 } from '@/composables/useKitchenCart'
 
 const emit = defineEmits<{ (e: 'submitted'): void; (e: 'error'): void }>()
 
 const note = ref('')
+const customDishInput = ref('')
+
+function handleAddCustom() {
+  if (!customDishInput.value.trim()) return
+  addCustomDish(customDishInput.value)
+  customDishInput.value = ''
+}
 
 /** 待提交的菜品道数（去重按 dish，非份数） */
 const newItemsCount = computed(() =>
@@ -201,6 +228,35 @@ async function handleSubmit() {
 .qty-num { font-size: 13px; font-weight: 700; color: #f97316; font-family: 'JetBrains Mono', monospace; min-width: 16px; text-align: center; }
 .ci-remove { width: 22px; height: 22px; border-radius: 4px; cursor: pointer; font-size: 10px; background: transparent; border: 1px solid #21262d; color: #484f58; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .ci-remove:hover { color: #f85149; border-color: rgba(248,81,73,.3); background: rgba(248,81,73,.06); }
+
+/* 自定义菜品 */
+.cart-item--custom { border-left: 2px solid rgba(139,92,246,.4); }
+.ci-custom-badge {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px;
+  background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.3);
+  color: #a78bfa; font-family: 'JetBrains Mono', monospace;
+}
+.custom-dish-box {
+  padding: 10px 14px; border-top: 1px solid #21262d; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.custom-dish-label { font-size: 10px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
+.custom-dish-row { display: flex; gap: 7px; }
+.custom-dish-input {
+  flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  color: #c9d1d9; font-size: 12px; font-family: 'JetBrains Mono', monospace;
+  padding: 6px 10px; outline: none; transition: border-color .15s;
+}
+.custom-dish-input:focus { border-color: rgba(139,92,246,.45); }
+.custom-dish-input::placeholder { color: #484f58; }
+.btn-add-custom {
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 11px; white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace; font-weight: 600; flex-shrink: 0;
+  background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.3); color: #a78bfa;
+  transition: all .2s;
+}
+.btn-add-custom:hover:not(:disabled) { background: rgba(139,92,246,.2); }
+.btn-add-custom:disabled { opacity: .4; cursor: not-allowed; }
 
 .cart-footer { padding: 12px 14px 18px; border-top: 1px solid #21262d; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
 .cart-note {
