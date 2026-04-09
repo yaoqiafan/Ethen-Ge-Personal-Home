@@ -107,6 +107,32 @@ export function clearCart(): void {
   scheduleSyncToRemote()
 }
 
+// 添加不在主菜单里的自定义菜品（用户在点单时手动写的）
+export function addCustomDish(name: string): void {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  // 若同名已存在则仅加量
+  const existing = items.value.find(i => i.dish.isCustom && i.dish.name === trimmed)
+  if (existing) {
+    existing.quantity++
+    scheduleSyncToRemote()
+    return
+  }
+  const customDish: import('@/types/kitchen').Dish = {
+    id: `custom_${Date.now()}`,
+    name: trimmed,
+    category: '小吃',
+    description: '用户自定义',
+    imageUrl: '',
+    available: true,
+    price: 0,
+    createdAt: new Date().toISOString(),
+    isCustom: true,
+  }
+  items.value.push({ dish: customDish, quantity: 1, submittedQty: 0 })
+  scheduleSyncToRemote()
+}
+
 export function openCart(): void  { isCartOpen.value = true }
 export function closeCart(): void { isCartOpen.value = false }
 export const cartOpen = isCartOpen

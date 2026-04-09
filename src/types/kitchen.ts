@@ -19,6 +19,7 @@ export interface Dish {
   available: boolean
   price: number
   createdAt: string
+  isCustom?: boolean   // 用户在点单时自己写的，不在主菜单中
 }
 
 export interface CartItem {
