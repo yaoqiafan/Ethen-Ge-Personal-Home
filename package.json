@@ -10,10 +10,14 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@tresjs/core": "^5.8.0",
+    "@types/three": "^0.184.1",
     "cos-js-sdk-v5": "^1.8.3",
     "serverchan-sdk": "^1.0.6",
+    "three": "^0.184.0",
     "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue-router": "^4.5.0",
+    "vue3-spline": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

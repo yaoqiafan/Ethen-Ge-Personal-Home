@@ -1,11 +1,16 @@
 <template>
   <div class="dashboard animate-fade-in">
-    <!-- Welcome card — full width -->
+    <!-- Welcome card -->
     <WelcomeCard class="dashboard-welcome" />
 
     <!-- Stat row -->
     <div class="stat-row">
-      <div v-for="stat in statCards" :key="stat.id" class="stat-card card">
+      <div
+        v-for="(stat, i) in statCards"
+        :key="stat.id"
+        class="stat-card glass-card"
+        :style="{ animationDelay: `${0.1 + i * 0.05}s` }"
+      >
         <div class="stat-icon" :style="{ color: stat.color }">{{ stat.icon }}</div>
         <div class="stat-body">
           <div class="stat-value" :style="{ color: stat.color }">{{ stat.value }}</div>
@@ -17,17 +22,15 @@
 
     <!-- Main widget grid -->
     <div class="widget-grid">
-      <!-- Framework widget — 2/3 -->
       <div class="widget-fw">
         <FrameworkWidget />
       </div>
-      <!-- AI Status widget — 1/3 -->
       <div class="widget-ai">
         <AIStatusWidget />
       </div>
     </div>
 
-    <!-- Garage widget — full width -->
+    <!-- Garage widget -->
     <GarageWidget />
   </div>
 </template>
@@ -45,7 +48,7 @@ const statCards: StatCard[] = [
     label: 'PF.AutoFramework',
     value: '35%',
     sub: 'v0.3.0-alpha · 开发中',
-    color: '#39d353',
+    color: '#02AD8B',
     icon: '◈',
   },
   {
@@ -95,15 +98,12 @@ const statCards: StatCard[] = [
 }
 
 .stat-card {
-  padding: 1rem;
+  padding: 1.15rem;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  border-radius: 8px;
-  transition: transform 0.2s ease, border-color 0.2s ease;
-}
-.stat-card:hover {
-  transform: translateY(-1px);
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .stat-icon {
@@ -112,15 +112,18 @@ const statCards: StatCard[] = [
   margin-top: 1px;
   line-height: 1;
 }
+
 .stat-body {
   min-width: 0;
 }
+
 .stat-value {
   font-size: 20px;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
+
 .stat-label {
   font-size: 11px;
   color: #c9d1d9;
@@ -130,6 +133,7 @@ const statCards: StatCard[] = [
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .stat-sub {
   font-size: 10px;
   color: #484f58;
@@ -152,6 +156,11 @@ const statCards: StatCard[] = [
 }
 .widget-fw > *, .widget-ai > * {
   flex: 1;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 900px) {

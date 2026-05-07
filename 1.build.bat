@@ -1,26 +1,58 @@
 @echo off
 chcp 65001 >nul
+setlocal enabledelayedexpansion
+
 echo ========================================
-echo   开始构建 Vue 3 前端项目
+echo   Stopless Lab - Build Script v2.0
 echo ========================================
 echo.
 
-echo [1/3] 正在安装依赖 (npm install)...
+rem -- Record start time --
+set START_TIME=%TIME%
+
+rem ============================================
+echo [1/4] Installing dependencies (npm install)...
+echo.
 call npm install
-
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo [ERROR] npm install failed! Check your network or package.json.
+    goto end
+)
+echo [OK] Dependencies installed.
 echo.
-echo [2/3] 正在编译打包 (npm run build)...
+
+rem ============================================
+echo [2/4] TypeScript type check (vue-tsc)...
+echo.
+call npx vue-tsc --noEmit 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo [WARN] Type check found issues, continuing build anyway...
+)
+echo.
+
+rem ============================================
+echo [3/4] Building production bundle (vite build)...
+echo.
 call npm run build
-
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo [ERROR] Build failed! Check the error messages above.
+    goto end
+)
+echo [OK] Build completed.
 echo.
-echo [3/3] 正在配置 IIS URL 重写规则...
+
+rem ============================================
+echo [4/4] Generating IIS web.config...
 if not exist "dist" (
-    echo [错误] 未找到 dist 文件夹，打包可能失败了。
+    echo [ERROR] dist directory not found. Build may have failed.
     goto end
 )
 
 if exist "dist\web.config" del "dist\web.config"
-echo 正在生成最新配置的 web.config...
+
 (
 echo ^<?xml version="1.0" encoding="UTF-8"?^>
 echo ^<configuration^>
@@ -28,16 +60,18 @@ echo   ^<system.webServer^>
 echo     ^<rewrite^>
 echo       ^<allowedServerVariables^>
 echo         ^<add name="HTTP_AUTHORIZATION" /^>
+echo         ^<add name="HTTP_UPGRADE" /^>
+echo         ^<add name="HTTP_CONNECTION" /^>
 echo       ^</allowedServerVariables^>
 echo       ^<rules^>
 echo.
-echo         ^<!-- BaGet NuGet 服务代理 --^>
+echo         ^<!-- BaGet NuGet Proxy --^>
 echo         ^<rule name="BaGet Proxy" stopProcessing="true"^>
 echo           ^<match url="^^nuget/?(.*)" /^>
 echo           ^<action type="Rewrite" url="http://101.43.39.163:8081/{R:1}" /^>
 echo         ^</rule^>
 echo.
-echo         ^<!-- OpenClaw Gateway AI 接口代理（后端注入 Authorization，前端无需携带 Token） --^>
+echo         ^<!-- OpenClaw Gateway AI Proxy --^>
 echo         ^<rule name="OpenClaw Gateway API Proxy" stopProcessing="true"^>
 echo           ^<match url="^^api/ai/(.*)" /^>
 echo           ^<serverVariables^>
@@ -46,23 +80,19 @@ echo           ^</serverVariables^>
 echo           ^<action type="Rewrite" url="http://127.0.0.1:18789/v1/{R:1}" /^>
 echo         ^</rule^>
 echo.
-echo         ^<!-- PF API 适配器代理（HTTP REST API）--^>
+echo         ^<!-- PF API Adapter Proxy (HTTP) --^>
 echo         ^<rule name="PF API Proxy" stopProcessing="true"^>
 echo           ^<match url="^^api/v1/(.*)" /^>
 echo           ^<action type="Rewrite" url="http://localhost:3001/api/v1/{R:1}" /^>
 echo         ^</rule^>
 echo.
-echo         ^<!-- PF WebSocket 适配器代理 --^>
+echo         ^<!-- PF WebSocket Adapter Proxy --^>
 echo         ^<rule name="PF WebSocket Proxy" stopProcessing="true"^>
 echo           ^<match url="^^api/v1/ws" /^>
 echo           ^<action type="Rewrite" url="http://localhost:3002" /^>
-echo           ^<serverVariables^>
-echo             ^<set name="HTTP_UPGRADE" value="websocket" /^>
-echo             ^<set name="HTTP_CONNECTION" value="upgrade" /^>
-echo           ^</serverVariables^>
 echo         ^</rule^>
 echo.
-echo         ^<!-- Vue Router History Mode 兜底：非文件/目录请求一律回落到 index.html --^>
+echo         ^<!-- Vue Router History Mode Fallback --^>
 echo         ^<rule name="Vue History Mode" stopProcessing="true"^>
 echo           ^<match url="(.*)" /^>
 echo           ^<conditions logicalGrouping="MatchAll"^>
@@ -77,19 +107,30 @@ echo     ^</rewrite^>
 echo     ^<httpProtocol^>
 echo       ^<customHeaders^>
 echo         ^<remove name="X-Powered-By" /^>
+echo         ^<add name="X-Frame-Options" value="SAMEORIGIN" /^>
+echo         ^<add name="X-Content-Type-Options" value="nosniff" /^>
 echo       ^</customHeaders^>
 echo     ^</httpProtocol^>
 echo   ^</system.webServer^>
 echo ^</configuration^>
 ) > "dist\web.config"
-echo web.config 创建成功！
+
+echo [OK] web.config generated.
+
+rem -- Record end time --
+set END_TIME=%TIME%
 
 echo.
 echo ========================================
-echo   全部构建完成！
-echo   现在你可以直接把 "dist" 文件夹里的
-echo   所有文件全部扔进 IIS 网站目录下了。
+echo   BUILD SUCCESS
+echo   Output: dist\
+echo   Deploy: copy dist contents to IIS
+echo   Preview: run 2.preview.bat
 echo ========================================
+
 :end
+echo.
+echo Start: %START_TIME%
+echo End:   %END_TIME%
 echo.
 pause
