@@ -1,463 +1,626 @@
 <template>
-  <div
-    ref="screenRef"
-    class="enter-screen"
-    :class="{ 'glitch-out': phase === 'exiting' }"
-    @click="handleEnter"
-    tabindex="0"
-    @keydown.enter.prevent="handleEnter"
-    @keydown.space.prevent="handleEnter"
-  >
-    <!-- CRT scan line -->
-    <div class="crt-scanline animate-scan-line"></div>
-    <!-- CRT vignette -->
-    <div class="crt-vignette"></div>
+  <div class="enter-3d">
+    <!-- ═══════════════ Layer 0: 3D Cube Matrix Background ═══════════════ -->
+    <CubeMatrixBackground />
 
-    <div class="terminal-frame">
-      <!-- Window chrome -->
-      <div class="term-titlebar">
-        <div class="term-dot red"></div>
-        <div class="term-dot yellow"></div>
-        <div class="term-dot green"></div>
-        <span class="term-title">启动 — ethen-ge-os</span>
-        <span class="term-time">{{ currentTime }}</span>
-      </div>
+    <!-- Layer 1 overlays now handled inside CubeMatrixBackground -->
 
-      <!-- Terminal body -->
-      <div ref="bodyRef" class="term-body">
+    <!-- ═══════════════ Layer 2: Foreground UI ═══════════════ -->
+    <div class="foreground">
+      <!-- Header -->
+      <header class="glass-header animate-fade-in-up" style="animation-delay: 0.1s">
+        <div class="header-inner">
+          <router-link to="/" class="logo-group">
+            <span class="logo-icon">◆</span>
+            <span class="logo-text">Stopless Lab</span>
+            <span class="logo-sub">葛大大的数字车间</span>
+          </router-link>
 
-        <!-- Boot lines -->
-        <div class="boot-lines">
+          <nav class="nav-links">
+            <router-link to="/framework" class="nav-link">
+              <span class="nav-link-icon">▣</span>
+              <span>框架文档</span>
+            </router-link>
+            <router-link to="/ai-toolbox" class="nav-link">
+              <span class="nav-link-icon">✦</span>
+              <span>AI 工具箱</span>
+            </router-link>
+            <router-link to="/garage" class="nav-link">
+              <span class="nav-link-icon">◎</span>
+              <span>数字车库</span>
+            </router-link>
+            <router-link to="/kitchen" class="nav-link">
+              <span class="nav-link-icon">🍳</span>
+              <span>家庭厨房</span>
+            </router-link>
+          </nav>
+
+          <div class="header-status">
+            <span class="status-dot online" />
+            <span class="status-text">系统就绪</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Hero Section -->
+      <section class="hero-section">
+        <div class="hero-content animate-fade-in-up" style="animation-delay: 0.3s">
+          <div class="hero-badge">
+            <span class="badge-pulse" />
+            <span>ETHEN-OS v1.0.0</span>
+          </div>
+
+          <h1 class="hero-title">
+            工业自动化<span class="text-[#02AD8B]">控制中枢</span>
+          </h1>
+
+          <p class="hero-subtitle">
+            构建下一代智能制造基础设施
+          </p>
+
+          <!-- Typewriter -->
+          <div class="typewriter-line">
+            <span class="typewriter-prefix">&gt;</span>
+            <span class="typewriter-text">{{ displayText }}</span>
+            <span class="typewriter-cursor">_</span>
+          </div>
+
+          <!-- CTA Buttons -->
+          <div class="hero-actions">
+            <button class="btn-accent" @click="goDashboard">
+              <span>进入控制台</span>
+              <span class="btn-arrow">→</span>
+            </button>
+            <a
+              href="https://github.com/Ethen-Ge"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-glass"
+            >
+              <span>查看 GitHub</span>
+              <span class="btn-arrow">↗</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Access Cards -->
+      <section class="cards-section animate-fade-in-up" style="animation-delay: 0.6s">
+        <div class="cards-grid">
           <div
-            v-for="(line, i) in visibleLines"
-            :key="i"
-            class="boot-line animate-slide-up"
+            v-for="card in quickCards"
+            :key="card.id"
+            class="glass-card quick-card"
+            @click="navigateTo(card.route)"
           >
-            <span v-if="line.type === 'ok'"    class="line-badge ok">  OK  </span>
-            <span v-if="line.type === 'warn'"  class="line-badge warn"> WARN </span>
-            <span v-if="line.type === 'error'" class="line-badge error"> ERR  </span>
-            <span v-if="line.type === 'info'"  class="line-prefix">  ···  </span>
-            <span v-if="line.type === 'blank'" class="line-prefix">       </span>
-            <span
-              class="line-text"
-              :class="{
-                'text-green-400': line.type === 'ok',
-                'text-yellow-400': line.type === 'warn',
-                'text-red-400': line.type === 'error',
-                'text-[#7d8590]': line.type === 'info' || line.type === 'blank',
-              }"
-            >{{ line.text }}</span>
-          </div>
-        </div>
-
-        <!-- Progress bar line -->
-        <div v-if="showProgressBar" class="progress-line animate-fade-in">
-          <span class="text-[#7d8590] text-xs mr-3">内核加载中</span>
-          <span class="prog-track">
-            <span class="prog-fill" :style="{ width: `${bootProgress}%` }"></span>
-          </span>
-          <span class="prog-pct">{{ Math.round(bootProgress) }}%</span>
-        </div>
-
-        <!-- Banner section -->
-        <Transition name="banner">
-          <div v-if="phase === 'banner' || phase === 'prompt' || phase === 'exiting'" class="banner-section">
-            <pre class="ascii-banner">{{ asciiArt }}</pre>
-            <div class="tagline">
-              <span class="tag-name">葛大大 &nbsp;·&nbsp; Ethen Ge</span>
+            <div class="card-top">
+              <span class="card-icon" :style="{ color: card.color }">{{ card.icon }}</span>
+              <span class="card-arrow">↗</span>
             </div>
-            <div class="tag-stack">
-              <span class="stack-tag">C#</span>
-              <span class="stack-sep">·</span>
-              <span class="stack-tag">.NET 8</span>
-              <span class="stack-sep">·</span>
-              <span class="stack-tag">WPF</span>
-              <span class="stack-sep">·</span>
-              <span class="stack-tag">Prism</span>
+            <div class="card-title">{{ card.title }}</div>
+            <div class="card-desc">{{ card.desc }}</div>
+            <div class="card-meta">
+              <span class="card-tag">{{ card.tag }}</span>
             </div>
           </div>
-        </Transition>
+        </div>
+      </section>
 
-        <!-- Enter prompt -->
-        <Transition name="fade-up">
-          <div v-if="phase === 'prompt'" class="enter-prompt">
-            <span class="prompt-key animate-blink">[ENTER]</span>
-            <span class="prompt-hint">或点击任意处进入系统</span>
-            <span class="prompt-arrow animate-blink">›</span>
-          </div>
-        </Transition>
-
-      </div>
+      <!-- Footer -->
+      <footer class="enter-footer animate-fade-in-up" style="animation-delay: 0.8s">
+        <SiteFooter />
+      </footer>
     </div>
-
-    <!-- 合规备案信息 -->
-    <SiteFooter class="enter-footer" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { sleep } from '@/composables/useTypewriter'
-import type { BootLine, BootPhase } from '@/types'
+import { useTypewriter } from '@/composables/useTypewriter'
 import SiteFooter from '@/components/layout/SiteFooter.vue'
+import CubeMatrixBackground from '@/components/effects/CubeMatrixBackground.vue'
 
 const router = useRouter()
-const screenRef = ref<HTMLDivElement | null>(null)
-const bodyRef = ref<HTMLDivElement | null>(null)
+const { displayText, type } = useTypewriter()
 
-const phase = ref<BootPhase>('boot')
-const visibleLines = ref<BootLine[]>([])
-const showProgressBar = ref(false)
-const bootProgress = ref(0)
-const currentTime = ref('')
-
-let timeInterval: ReturnType<typeof setInterval> | null = null
-
-const asciiArt = `
-  ██████╗ ███████╗    ██╗
- ██╔════╝ ██╔════╝   ██╔╝
- ██║  ███╗█████╗    ██╔╝
- ██║   ██║██╔══╝   ██╔╝
- ╚██████╔╝███████╗ ██████╗
-  ╚═════╝ ╚══════╝ ╚═════╝`.trim()
-
-const bootScript: BootLine[] = [
-  { text: 'GE-BIOS v3.14 © 2024 Ethen-Ge Systems, Inc.', type: 'info', delay: 0 },
-  { text: '', type: 'blank', delay: 80 },
-  { text: 'CPU: 工业逻辑处理器 × 8 核 @ 3.6 GHz', type: 'info', delay: 120 },
-  { text: 'RAM: 64 GB DDR5-6400 — ECC 校验通过', type: 'info', delay: 90 },
-  { text: 'DISK: NVMe Gen4 2TB — SMART 自检通过', type: 'info', delay: 80 },
-  { text: '', type: 'blank', delay: 60 },
-  { text: '挂载根文件系统...', type: 'ok', delay: 150 },
-  { text: '启动网络管理器...', type: 'ok', delay: 130 },
-  { text: '加载人格模块...', type: 'ok', delay: 180 },
-  { text: '初始化 C# 运行时 (.NET 8)...', type: 'ok', delay: 140 },
-  { text: '启动 Prism IoC 容器...', type: 'ok', delay: 120 },
-  { text: '连接 AI 推理集群...', type: 'ok', delay: 200 },
-  { text: '挂载 H2 驱动子系统...', type: 'warn', delay: 160 },
-  { text: '  → 目标尚未挂载 (参见: cd garage)', type: 'blank', delay: 80 },
-  { text: '', type: 'blank', delay: 100 },
+const quickCards = [
+  {
+    id: 'framework',
+    title: 'PF.AutoFramework',
+    desc: '工业自动化测试框架，基于 C# .NET 8 构建的模块化解决方案',
+    tag: 'v0.3.0-alpha',
+    color: '#02AD8B',
+    icon: '◈',
+    route: '/framework',
+  },
+  {
+    id: 'ai',
+    title: 'AI Agent 调试',
+    desc: '多模型 AI 对话平台，支持 GPT-4o · Claude · DeepSeek · Kimi',
+    tag: '4 模型在线',
+    color: '#58a6ff',
+    icon: '✦',
+    route: '/ai-toolbox',
+  },
+  {
+    id: 'garage',
+    title: '数字车库',
+    desc: 'Kawasaki H2 提车进度追踪，工业美学与机械激情的交汇点',
+    tag: '44% 达成',
+    color: '#f85149',
+    icon: '◎',
+    route: '/garage',
+  },
+  {
+    id: 'kitchen',
+    title: '家庭厨房',
+    desc: '智能点餐与菜单管理系统，支持在线下单与实时推送通知',
+    tag: '营业中',
+    color: '#bc8cff',
+    icon: '🍳',
+    route: '/kitchen',
+  },
 ]
 
-async function runBootSequence() {
-  for (const line of bootScript) {
-    await sleep(line.delay)
-    visibleLines.value.push(line)
-    scrollToBottom()
-  }
-
-  // Progress bar
-  showProgressBar.value = true
-  const steps = 40
-  for (let i = 0; i <= steps; i++) {
-    await sleep(30)
-    bootProgress.value = (i / steps) * 100
-  }
-  await sleep(200)
-  showProgressBar.value = false
-
-  visibleLines.value.push({ text: '正在启动 ETHEN-OS v1.0.0...', type: 'ok', delay: 0 })
-  visibleLines.value.push({ text: '', type: 'blank', delay: 0 })
-  scrollToBottom()
-
-  await sleep(400)
-  phase.value = 'banner'
-  await sleep(800)
-  phase.value = 'prompt'
-
-  screenRef.value?.focus()
+function navigateTo(path: string) {
+  router.push(path)
 }
 
-async function handleEnter() {
-  if (phase.value !== 'prompt') return
-  phase.value = 'exiting'
-  await sleep(650)
+function goDashboard() {
   router.push('/dashboard')
 }
 
-function scrollToBottom() {
-  if (bodyRef.value) {
-    bodyRef.value.scrollTop = bodyRef.value.scrollHeight
-  }
-}
-
-function updateTime() {
-  currentTime.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-}
-
-onMounted(() => {
-  updateTime()
-  timeInterval = setInterval(updateTime, 1000)
-  runBootSequence()
-})
-
-onUnmounted(() => {
-  if (timeInterval) clearInterval(timeInterval)
+onMounted(async () => {
+  await new Promise((r) => setTimeout(r, 600))
+  await type('正在加载 C# 自动化控制协议...', 45)
+  await new Promise((r) => setTimeout(r, 500))
+  await type(' Prism IoC 容器已就绪，等待指令。', 40)
 })
 </script>
 
 <style scoped>
-.enter-screen {
+/* ═══════════════ Layout ═══════════════ */
+.enter-3d {
   position: fixed;
   inset: 0;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  outline: none;
-  cursor: default;
+  overflow: hidden;
+  background: #020617;
 }
 
-/* 备案信息浮在终端底部，不占用布局空间 */
-.enter-footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border-top: none !important;
-  padding: 8px 16px !important;
+/* ═══════════════ Foreground ═══════════════ */
+.foreground {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 0 1.5rem;
+  pointer-events: none;
+}
+
+.foreground > * {
   pointer-events: auto;
 }
 
-.enter-screen.glitch-out {
-  animation: glitchOut 0.6s ease-in-out forwards;
-}
-
-.crt-scanline {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(transparent, rgba(57, 211, 83, 0.06), transparent);
-  pointer-events: none;
-  z-index: 100;
-}
-
-.crt-vignette {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 99;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.65) 100%);
-}
-
-/* Terminal window */
-.terminal-frame {
+/* ═══════════════ Header ═══════════════ */
+.glass-header {
   width: 100%;
-  max-width: 760px;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow:
-    0 0 0 1px #21262d,
-    0 20px 60px rgba(0, 0, 0, 0.8),
-    0 0 40px rgba(57, 211, 83, 0.06);
-  animation: fadeIn 0.4s ease-out;
+  max-width: 1200px;
+  margin-top: 1rem;
+  opacity: 0; /* overridden by animate-fade-in-up */
 }
 
-.term-titlebar {
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.logo-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logo-icon {
+  font-size: 20px;
+  color: #02AD8B;
+  filter: drop-shadow(0 0 6px rgba(2, 173, 139, 0.5));
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e6edf3;
+  letter-spacing: 0.03em;
+}
+
+.logo-sub {
+  font-size: 11px;
+  color: #484f58;
+  padding-left: 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ── Nav Links ──────────────────────────── */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 14px;
-  background: #161b22;
-  border-bottom: 1px solid #21262d;
-}
-
-.term-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-.term-dot.red    { background: #f85149; }
-.term-dot.yellow { background: #e3b341; }
-.term-dot.green  { background: #39d353; }
-
-.term-title {
-  flex: 1;
-  text-align: center;
-  font-size: 11px;
-  color: #7d8590;
-  letter-spacing: 0.05em;
-}
-
-.term-time {
-  font-size: 11px;
-  color: #7d8590;
-  font-variant-numeric: tabular-nums;
-}
-
-.term-body {
-  padding: 1.25rem 1.5rem;
-  min-height: 360px;
-  max-height: 70vh;
-  overflow-y: auto;
+  padding: 6px 14px;
+  border-radius: 8px;
   font-size: 13px;
-  line-height: 1.7;
-  color: #c9d1d9;
-}
-
-/* Boot lines */
-.boot-line {
-  display: flex;
-  align-items: baseline;
-  gap: 0;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.line-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 0 4px;
-  border-radius: 2px;
-  margin-right: 10px;
-  flex-shrink: 0;
-  letter-spacing: 0.05em;
-}
-.line-badge.ok    { color: #39d353; border: 1px solid rgba(57,211,83,0.3); }
-.line-badge.warn  { color: #e3b341; border: 1px solid rgba(227,179,65,0.3); }
-.line-badge.error { color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-
-.line-prefix {
-  color: #30363d;
-  margin-right: 10px;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-.line-text {
-  flex: 1;
-}
-
-/* Progress bar */
-.progress-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0;
-  font-size: 12px;
-}
-.prog-track {
-  flex: 1;
-  max-width: 260px;
-  height: 4px;
-  background: #21262d;
-  border-radius: 2px;
-  overflow: hidden;
-}
-.prog-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #39d353, #58a6ff);
-  border-radius: 2px;
-  transition: width 0.05s linear;
-  box-shadow: 0 0 6px rgba(57, 211, 83, 0.6);
-}
-.prog-pct {
-  font-size: 11px;
-  color: #39d353;
-  width: 36px;
-  text-align: right;
-}
-
-/* ASCII Banner */
-.banner-section {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #21262d;
-  text-align: center;
-}
-
-.ascii-banner {
-  font-size: 12px;
-  line-height: 1.3;
-  color: #39d353;
-  text-shadow: 0 0 8px rgba(57, 211, 83, 0.7), 0 0 20px rgba(57, 211, 83, 0.3);
-  display: inline-block;
-  margin: 0;
-}
-
-.tagline {
-  margin-top: 10px;
-}
-.tag-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #e6edf3;
-  letter-spacing: 0.08em;
-}
-
-.tag-stack {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-.stack-tag {
-  font-size: 11px;
-  color: #58a6ff;
-  letter-spacing: 0.06em;
-}
-.stack-sep {
-  color: #30363d;
-  font-size: 10px;
-}
-
-/* Enter prompt */
-.enter-prompt {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 1.5rem;
-  padding: 10px 20px;
-  border: 1px solid rgba(57, 211, 83, 0.25);
-  border-radius: 6px;
-  background: rgba(57, 211, 83, 0.04);
-  cursor: pointer;
+  color: #7d8590;
+  text-decoration: none;
   transition: all 0.2s ease;
 }
-.enter-prompt:hover {
-  border-color: rgba(57, 211, 83, 0.6);
-  background: rgba(57, 211, 83, 0.08);
-  box-shadow: 0 0 20px rgba(57, 211, 83, 0.15);
+
+.nav-link:hover {
+  color: #e6edf3;
+  background: rgba(255, 255, 255, 0.04);
 }
-.prompt-key {
-  font-size: 12px;
-  font-weight: 700;
-  color: #39d353;
-  padding: 2px 8px;
-  border: 1px solid rgba(57, 211, 83, 0.4);
-  border-radius: 3px;
-  background: rgba(57, 211, 83, 0.1);
+
+.nav-link-icon {
+  font-size: 14px;
 }
-.prompt-hint {
-  font-size: 12px;
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.status-dot.online {
+  background: #02AD8B;
+  box-shadow: 0 0 6px rgba(2, 173, 139, 0.8);
+}
+
+.status-text {
+  font-size: 11px;
+  color: #484f58;
+}
+
+/* ═══════════════ Hero ═══════════════ */
+.hero-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  opacity: 0; /* overridden by animate-fade-in-up */
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  color: #02AD8B;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(8px);
+  background: rgba(2, 173, 139, 0.08);
+  border: 1px solid rgba(2, 173, 139, 0.2);
+}
+
+.badge-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #02AD8B;
+  box-shadow: 0 0 8px rgba(2, 173, 139, 0.8);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #e6edf3;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+  text-shadow: 0 0 60px rgba(2, 173, 139, 0.15);
+}
+
+.hero-subtitle {
+  font-size: 1.1rem;
   color: #7d8590;
+  margin: 0 0 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
 }
-.prompt-arrow {
+
+/* ── Typewriter ──────────────────────────── */
+.typewriter-line {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 14px;
+  margin-bottom: 2rem;
+  min-height: 22px;
+}
+
+.typewriter-prefix {
+  color: #02AD8B;
+  margin-right: 8px;
+  font-weight: 700;
+}
+
+.typewriter-text {
+  color: #8b949e;
+}
+
+.typewriter-cursor {
+  color: #02AD8B;
+  animation: cursorBlink 1s step-end infinite;
+  margin-left: 1px;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── CTA Buttons ─────────────────────────── */
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 2rem;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  background: #02AD8B;
+  color: #fff;
+  letter-spacing: 0.02em;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(2, 173, 139, 0.3);
+}
+
+.btn-accent:hover {
+  background: #03d9a8;
+  box-shadow: 0 0 30px rgba(2, 173, 139, 0.5), 0 0 60px rgba(2, 173, 139, 0.2);
+  transform: translateY(-2px);
+}
+
+.btn-accent:active {
+  transform: translateY(0);
+}
+
+.btn-glass {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 2rem;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+  letter-spacing: 0.02em;
+  transition: all 0.3s ease;
+}
+
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(2, 173, 139, 0.5);
+  box-shadow: 0 0 20px rgba(2, 173, 139, 0.15);
+  transform: translateY(-2px);
+  color: #fff;
+}
+
+.btn-glass:active {
+  transform: translateY(0);
+}
+
+.btn-arrow {
   font-size: 16px;
-  color: #39d353;
 }
 
-/* Transitions */
-.banner-enter-active {
-  transition: opacity 0.6s ease, transform 0.6s ease;
-}
-.banner-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
+/* ═══════════════ Quick Access Cards ═══════════════ */
+.cards-section {
+  width: 100%;
+  max-width: 1100px;
+  padding-bottom: 0.5rem;
+  opacity: 0; /* overridden by animate-fade-in-up */
 }
 
-.fade-up-enter-active {
-  transition: opacity 0.5s ease 0.2s, transform 0.5s ease 0.2s;
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
 }
-.fade-up-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
+
+.quick-card {
+  padding: 1.25rem;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.quick-card:hover {
+  transform: translateY(-6px);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(2, 173, 139, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(2, 173, 139, 0.12);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.card-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.card-arrow {
+  font-size: 14px;
+  color: #30363d;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.quick-card:hover .card-arrow {
+  color: #02AD8B;
+  transform: translate(2px, -2px);
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e6edf3;
+  margin-bottom: 0.4rem;
+}
+
+.card-desc {
+  font-size: 11px;
+  color: #7d8590;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(2, 173, 139, 0.08);
+  border: 1px solid rgba(2, 173, 139, 0.15);
+  color: #02AD8B;
+  letter-spacing: 0.04em;
+}
+
+/* ═══════════════ Footer ═══════════════ */
+.enter-footer {
+  width: 100%;
+  max-width: 1200px;
+  opacity: 0; /* overridden by animate-fade-in-up */
+}
+
+.enter-footer :deep(footer) {
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: transparent !important;
+  padding: 8px 0 !important;
+}
+
+/* ═══════════════ Responsive ═══════════════ */
+@media (max-width: 1024px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .nav-links {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2.2rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-accent,
+  .btn-glass {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .logo-sub {
+    display: none;
+  }
+
+  .header-status {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: 1.7rem;
+  }
+
+  .typewriter-line {
+    font-size: 12px;
+  }
+
+  .glass-header {
+    margin-top: 0.5rem;
+  }
+
+  .header-inner {
+    padding: 0.6rem 1rem;
+  }
 }
 </style>

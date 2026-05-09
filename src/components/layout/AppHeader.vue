@@ -22,7 +22,7 @@
     <!-- 右侧状态栏 -->
     <div class="header-right">
       <div class="status-chip">
-        <span class="status-dot online"></span>
+        <span class="status-dot online" />
         <span class="chip-text">所有系统运行正常</span>
       </div>
 
@@ -82,13 +82,15 @@ onUnmounted(() => {
   align-items: center;
   padding: 0 1.25rem;
   height: 48px;
-  background: #0d1117;
-  border-bottom: 1px solid #21262d;
   flex-shrink: 0;
   gap: 10px;
+  /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ── 汉堡按钮（仅移动端） ────────────────── */
+/* 汉堡按钮（仅移动端） */
 .hamburger-btn {
   display: none;
   flex-direction: column;
@@ -98,14 +100,14 @@ onUnmounted(() => {
   height: 32px;
   padding: 6px;
   background: transparent;
-  border: 1px solid #21262d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   cursor: pointer;
   flex-shrink: 0;
   transition: border-color 0.2s ease;
 }
 .hamburger-btn:hover {
-  border-color: rgba(57, 211, 83, 0.4);
+  border-color: rgba(2, 173, 139, 0.5);
 }
 .ham-line {
   display: block;
@@ -116,7 +118,7 @@ onUnmounted(() => {
   transition: background 0.2s ease;
 }
 .hamburger-btn:hover .ham-line {
-  background: #39d353;
+  background: #02AD8B;
 }
 
 @media (max-width: 767px) {
@@ -125,7 +127,7 @@ onUnmounted(() => {
   }
 }
 
-/* ── 面包屑 ─────────────────────────────── */
+/* 面包屑 */
 .header-left {
   display: flex;
   align-items: center;
@@ -156,7 +158,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* ── 右侧状态 ───────────────────────────── */
+/* 右侧状态 */
 .header-right {
   display: flex;
   align-items: center;
@@ -178,7 +180,7 @@ onUnmounted(() => {
 .divider {
   width: 1px;
   height: 16px;
-  background: #21262d;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .stack-chips {
@@ -190,9 +192,9 @@ onUnmounted(() => {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 3px;
-  background: rgba(57, 211, 83, 0.08);
-  border: 1px solid rgba(57, 211, 83, 0.2);
-  color: #39d353;
+  background: rgba(2, 173, 139, 0.08);
+  border: 1px solid rgba(2, 173, 139, 0.2);
+  color: #02AD8B;
   letter-spacing: 0.04em;
 }
 .stack-chip.cyan {
@@ -220,8 +222,8 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 .status-dot.online {
-  background: #39d353;
-  box-shadow: 0 0 5px rgba(57, 211, 83, 0.8);
+  background: #02AD8B;
+  box-shadow: 0 0 5px rgba(2, 173, 139, 0.8);
 }
 
 @media (max-width: 640px) {

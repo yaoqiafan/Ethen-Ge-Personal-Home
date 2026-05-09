@@ -1,15 +1,39 @@
 @echo off
 chcp 65001 >nul
+setlocal enabledelayedexpansion
+
 echo ========================================
-echo   启动本地预览服务器 (Vite Preview)
+echo   Stopless Lab - Preview Server
 echo ========================================
 echo.
-echo 正在启动，请稍候...
-echo (提示：预览过程中请不要关闭此窗口。)
-echo (如需停止服务器，请在此窗口按 Ctrl + C)
+
+rem -- Check if dist exists --
+if not exist "dist\index.html" (
+    echo [WARN] No dist build found.
+    echo.
+    choice /C YN /M "Build now before preview?"
+    if !ERRORLEVEL! equ 2 (
+        echo Preview cancelled.
+        goto end
+    )
+    echo.
+    echo Building...
+    call npm run build
+    if %ERRORLEVEL% neq 0 (
+        echo [ERROR] Build failed, cannot start preview.
+        goto end
+    )
+    echo [OK] Build completed.
+    echo.
+)
+
+rem -- Start preview --
+echo Starting Vite preview server...
+echo (Press Ctrl+C to stop the server)
 echo.
 
 call npm run preview
 
+:end
 echo.
 pause

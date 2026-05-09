@@ -6,7 +6,7 @@
         v-if="isMobileMenuOpen"
         class="mobile-overlay"
         @click="isMobileMenuOpen = false"
-      ></div>
+      />
     </Transition>
 
     <AppSidebar
@@ -56,6 +56,9 @@ const isMobileMenuOpen = ref(false)
   overflow: hidden;
   min-width: 0;
   transition: margin-left 0.3s ease;
+  /* Glassmorphism background */
+  background: rgba(2, 6, 23, 0.6);
+  backdrop-filter: blur(8px);
 }
 
 .content-main {
@@ -70,7 +73,7 @@ const isMobileMenuOpen = ref(false)
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   z-index: 40;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(4px);
 }
 
 .overlay-enter-active,
