@@ -7,6 +7,7 @@ import AIToolboxView from '@/views/AIToolboxView.vue'
 import GarageView from '@/views/GarageView.vue'
 import KitchenView from '@/views/KitchenView.vue'
 import KitchenPublicView from '@/views/KitchenPublicView.vue'
+import GameRoomView from '@/views/GameRoomView.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -52,6 +53,12 @@ const routes: RouteRecordRaw[] = [
         name: 'kitchen',
         component: KitchenView,
         meta: { title: '家庭厨房', titleCN: 'Family Kitchen' },
+      },
+      {
+        path: 'game-room',
+        name: 'game-room',
+        component: GameRoomView,
+        meta: { title: '游戏室', titleCN: 'Game Room' },
       },
     ],
   },

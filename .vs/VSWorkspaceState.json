@@ -1,7 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\openclaw-adapter"
   ],
-  "SelectedNode": "\\tsconfig.json",
+  "SelectedNode": "\\openclaw-adapter\\package.json",
   "PreviewInSolutionExplorer": false
 }

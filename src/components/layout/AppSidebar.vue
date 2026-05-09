@@ -140,6 +140,14 @@ const navItems: NavItem[] = [
     icon: '🍳',
     description: '今日家常菜单',
   },
+  {
+    id: 'game-room',
+    label: '游戏室',
+    labelCN: 'Game Room',
+    path: '/game-room',
+    icon: '⌘',
+    description: '经典小游戏 · 排行榜',
+  },
 ]
 
 function isActive(path: string): boolean {
