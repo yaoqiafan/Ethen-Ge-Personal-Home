@@ -3,9 +3,7 @@
     <!-- ═══════════════ Layer 0: 3D Cube Matrix Background ═══════════════ -->
     <CubeMatrixBackground />
 
-    <!-- ═══════════════ Layer 1: Gradient Overlay ═══════════════ -->
-    <div class="bg-overlay" />
-    <div class="bg-grid" />
+    <!-- Layer 1 overlays now handled inside CubeMatrixBackground -->
 
     <!-- ═══════════════ Layer 2: Foreground UI ═══════════════ -->
     <div class="foreground">
@@ -188,31 +186,6 @@ onMounted(async () => {
   inset: 0;
   overflow: hidden;
   background: #020617;
-}
-
-/* ═══════════════ Background Overlays ═══════════════ */
-.bg-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 40%, transparent 100%, rgba(2, 23, 23, 0.2) 100%),
-    radial-gradient(ellipse 100% 100% at 50% 50%, transparent 50%, #020617 100%),
-    radial-gradient(ellipse 40% 50% at 20% 80%, rgba(2, 173, 139, 0.03) 0%, transparent 100%),
-    radial-gradient(ellipse 40% 50% at 80% 80%, rgba(88, 166, 255, 0.02) 0%, transparent 100%);
-}
-
-.bg-grid {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(2, 173, 139, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(2, 173, 139, 0.02) 1px, transparent 1px);
-  background-size: 60px 60px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 15%, transparent 65%);
 }
 
 /* ═══════════════ Foreground ═══════════════ */
