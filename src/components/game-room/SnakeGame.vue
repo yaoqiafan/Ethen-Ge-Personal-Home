@@ -423,7 +423,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   border: 1px solid #21262d;
   border-radius: 4px;
   overflow: hidden;
-  background: #0d1117;
+  background: var(--glass-bg); 
 }
 .sg-canvas {
   display: block;
@@ -461,7 +461,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   width: 44px;
   height: 44px;
   border-radius: 6px;
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   color: #7d8590;
   font-size: 16px;

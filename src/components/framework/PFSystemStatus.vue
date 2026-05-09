@@ -6,7 +6,7 @@
       <div
         v-for="card in statusCards"
         :key="card.key"
-        class="flex flex-col gap-1 rounded-lg border border-[#21262d] bg-[#161b22] px-4 py-3
+        class="flex flex-col gap-1 rounded-lg border glass-bg px-4 py-3
                transition-transform duration-200 hover:-translate-y-px"
       >
         <span class="text-[10px] uppercase tracking-widest text-[#484f58] font-mono">{{ card.label }}</span>
@@ -51,7 +51,7 @@
     <transition name="slide-down">
       <div
         v-if="diagMessage"
-        class="rounded-md border border-[#21262d] bg-[#0d1117] px-4 py-2
+        class="rounded-md border border-[#21262d] glass-bg px-4 py-2
                font-mono text-xs text-[#7d8590] leading-relaxed"
       >
         <span class="text-terminal-green mr-2">›</span>{{ diagMessage }}
@@ -198,21 +198,18 @@ watch(() => props.wsConnected, (connected) => {
 <style scoped>
 /* 通用操作按钮 */
 .pf-btn {
-  @apply flex items-center gap-1.5 rounded-md border border-[#30363d] bg-[#21262d]
-         px-3 py-1.5 font-mono text-xs text-[#7d8590]
-         transition-all duration-150 cursor-pointer
-         hover:border-[#39d353]/40 hover:text-[#c9d1d9] hover:bg-[#161b22]
-         disabled:opacity-50 disabled:cursor-not-allowed;
+  display: flex; align-items: center; gap: 0.375rem;
+  border-radius: 0.375rem; border: 1px solid #30363d;
+  background: var(--glass-bg);
+  padding: 0.25rem 0.5rem;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #7d8590;
+  transition: all 0.15s ease; cursor: pointer;
 }
-.pf-btn-green {
-  @apply hover:border-[#39d353]/60 hover:text-terminal-green;
-}
-.pf-btn-yellow {
-  @apply hover:border-[#e3b341]/60 hover:text-terminal-yellow;
-}
-.pf-btn-icon {
-  @apply text-xs;
-}
+.pf-btn:hover { border-color: rgba(57, 211, 83, 0.4); color: #c9d1d9; }
+.pf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pf-btn-green:hover { border-color: rgba(57, 211, 83, 0.6); color: #39d353; }
+.pf-btn-yellow:hover { border-color: rgba(227, 179, 65, 0.6); color: #e3b341; }
+.pf-btn-icon { font-size: 0.75rem; }
 
 /* 诊断结果展开动画 */
 .slide-down-enter-active,

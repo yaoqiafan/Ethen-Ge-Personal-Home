@@ -62,7 +62,7 @@ const imgError = ref(false)
 
 <style scoped>
 .dish-card {
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 10px;
   overflow: hidden;
@@ -79,7 +79,7 @@ const imgError = ref(false)
   width: 100%;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  background: #0d1117;
+  background: var(--glass-bg); 
 }
 .dish-img { width: 100%; height: 100%; object-fit: cover; }
 .dish-img-placeholder {
@@ -93,7 +93,6 @@ const imgError = ref(false)
   position: absolute; inset: 0;
   background: rgba(0,0,0,.55);
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(2px);
 }
 .sold-out-text {
   font-size: 13px; color: #f85149; font-weight: 700;
@@ -105,7 +104,6 @@ const imgError = ref(false)
   position: absolute; top: 8px; left: 8px;
   font-size: 10px; padding: 2px 7px; border-radius: 4px;
   background: rgba(0,0,0,.6); color: #e6edf3;
-  backdrop-filter: blur(4px);
   font-family: 'JetBrains Mono', monospace;
 }
 

@@ -400,11 +400,11 @@ function formatTime(iso: string): string {
 </script>
 
 <style scoped>
-.admin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(2px); z-index: 300; }
+.admin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 300; }
 .admin-panel {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: min(480px, 96vw);
-  background: #161b22; border-left: 1px solid #30363d;
+  background: var(--glass-bg); border-left: 1px solid #30363d;
   z-index: 301; display: flex; flex-direction: column;
   box-shadow: -12px 0 50px rgba(0,0,0,.5);
 }
@@ -426,8 +426,8 @@ function formatTime(iso: string): string {
 .ap-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
 .ap-empty { text-align: center; color: #484f58; font-size: 13px; padding: 3rem 0; }
 
-.dish-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; border: 1px solid #21262d; background: #0d1117; margin-bottom: 6px; }
-.dr-img-wrap { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: #161b22; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.dish-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; border: 1px solid #21262d; background: var(--glass-bg); margin-bottom: 6px; }
+.dr-img-wrap { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: var(--glass-bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .dr-img { width: 100%; height: 100%; object-fit: cover; }
 .dr-emoji { font-size: 20px; }
 .dr-info { flex: 1; min-width: 0; }
@@ -446,7 +446,7 @@ function formatTime(iso: string): string {
 .upload-zone {
   width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; border: 2px dashed #30363d;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .2s; overflow: hidden; background: #0d1117;
+  cursor: pointer; transition: all .2s; overflow: hidden; background: var(--glass-bg); 
 }
 .upload-zone:hover, .upload-zone--dragging { border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.04); }
 .upload-zone--has-img { border-style: solid; border-color: rgba(249,115,22,.3); }
@@ -465,12 +465,12 @@ function formatTime(iso: string): string {
 .form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 11px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
 .form-input {
-  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  background: var(--glass-bg); border: 1px solid #30363d; border-radius: 6px;
   color: #c9d1d9; font-size: 12px; font-family: 'JetBrains Mono', monospace;
   padding: 7px 10px; outline: none; transition: border-color .15s; width: 100%; box-sizing: border-box;
 }
 .form-input:focus { border-color: rgba(249,115,22,.45); }
-.form-select option { background: #161b22; }
+.form-select option { background: var(--glass-bg); }
 .form-textarea { resize: vertical; min-height: 56px; }
 .form-row { flex-direction: row; gap: 10px; }
 .form-half { flex: 1; display: flex; flex-direction: column; gap: 5px; }
@@ -492,7 +492,7 @@ function formatTime(iso: string): string {
 
 /* ── 工单管理 ─────────────────────────────────────────────────────────────── */
 .session-create-box {
-  background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px;
   padding: 12px 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px;
 }
 .sc-label { font-size: 11px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
@@ -530,7 +530,7 @@ function formatTime(iso: string): string {
 
 .session-row {
   border: 1px solid #21262d; border-radius: 8px; padding: 10px 12px;
-  margin-bottom: 8px; background: #0d1117; display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 8px; background: var(--glass-bg); display: flex; flex-direction: column; gap: 6px;
 }
 .sr-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .sr-info { display: flex; align-items: center; gap: 8px; }
@@ -553,7 +553,7 @@ function formatTime(iso: string): string {
 .sr-items--empty { color: #484f58; font-size: 11px; }
 .sr-item {
   display: flex; align-items: center; gap: 8px;
-  padding: 4px 8px; background: #161b22; border-radius: 5px;
+  padding: 4px 8px; background: var(--glass-bg); border-radius: 5px;
 }
 .sri-name { font-size: 12px; color: #c9d1d9; flex: 1; }
 .sri-cat  { font-size: 10px; color: #484f58; }

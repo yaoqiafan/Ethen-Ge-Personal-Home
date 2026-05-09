@@ -188,7 +188,7 @@ onMounted(fetchReleases)
 /* ── 面板头 ──────────────────────────────── */
 .panel-header {
   display: flex; align-items: center; gap: 10px;
-  padding: 8px 12px; background: #0d1117;
+  padding: 8px 12px; background: var(--glass-bg); 
   border: 1px solid #21262d; border-radius: 6px;
 }
 .panel-title {
@@ -212,7 +212,7 @@ onMounted(fetchReleases)
 /* ── 加载 ────────────────────────────────── */
 .loading-list { display: flex; flex-direction: column; gap: 8px; }
 .load-item.skeleton {
-  height: 80px; border-radius: 8px; background: #161b22;
+  height: 80px; border-radius: 8px; background: var(--glass-bg); 
   border: 1px solid #21262d; animation: shimmer 1.5s ease-in-out infinite;
 }
 @keyframes shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -240,7 +240,7 @@ onMounted(fetchReleases)
 .release-list { display: flex; flex-direction: column; gap: 8px; }
 
 .release-card {
-  background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px;
   overflow: hidden; transition: border-color .2s;
 }
 .release-card:hover { border-color: rgba(57,211,83,.3); }
@@ -282,7 +282,7 @@ onMounted(fetchReleases)
 .changelog-text {
   font-size: 11px; color: #7d8590; white-space: pre-wrap;
   font-family: 'JetBrains Mono', monospace; line-height: 1.7;
-  margin: 0; background: #0d1117; padding: 8px 10px; border-radius: 4px;
+  margin: 0; background: var(--glass-bg); padding: 8px 10px; border-radius: 4px;
   max-height: 120px; overflow-y: auto;
 }
 
@@ -299,7 +299,7 @@ onMounted(fetchReleases)
 .asset-list { display: flex; flex-direction: column; gap: 3px; }
 .asset-row {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-  border-radius: 5px; background: #0d1117; border: 1px solid #21262d;
+  border-radius: 5px; background: var(--glass-bg); border: 1px solid #21262d;
   text-decoration: none; transition: border-color .15s;
   cursor: pointer;
 }

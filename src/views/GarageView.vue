@@ -35,6 +35,8 @@
   align-items: center;
   gap: 14px;
   border-radius: 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 .cs-badge {
   font-size: 11px;
@@ -87,7 +89,7 @@
   padding: 8px 16px;
   border: 1px solid #21262d;
   border-radius: 6px;
-  background: #0d1117;
+  background: var(--glass-bg); 
 }
 .cs-dot.red {
   width: 7px;

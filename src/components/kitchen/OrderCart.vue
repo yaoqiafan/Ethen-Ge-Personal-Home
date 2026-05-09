@@ -151,13 +151,12 @@ async function handleSubmit() {
 .cart-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.5);
-  backdrop-filter: blur(2px);
   z-index: 200;
 }
 .cart-drawer {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: min(360px, 92vw);
-  background: #161b22;
+  background: var(--glass-bg); 
   border-left: 1px solid #21262d;
   z-index: 201;
   display: flex; flex-direction: column;
@@ -199,7 +198,7 @@ async function handleSubmit() {
 .cart-item {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px; border-radius: 7px;
-  background: #0d1117; border: 1px solid #21262d;
+  background: var(--glass-bg); border: 1px solid #21262d;
   transition: border-color .15s;
 }
 .cart-item:hover { border-color: rgba(249,115,22,.25); }
@@ -207,7 +206,7 @@ async function handleSubmit() {
 .cart-item--submitted {
   border-left: 2px solid rgba(57,211,83,.35);
 }
-.ci-img-wrap { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: #161b22; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.ci-img-wrap { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; background: var(--glass-bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .ci-img { width: 100%; height: 100%; object-fit: cover; }
 .ci-emoji { font-size: 20px; }
 .ci-info { flex: 1; min-width: 0; }
@@ -243,7 +242,7 @@ async function handleSubmit() {
 .custom-dish-label { font-size: 10px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
 .custom-dish-row { display: flex; gap: 7px; }
 .custom-dish-input {
-  flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  flex: 1; background: var(--glass-bg); border: 1px solid #30363d; border-radius: 6px;
   color: #c9d1d9; font-size: 12px; font-family: 'JetBrains Mono', monospace;
   padding: 6px 10px; outline: none; transition: border-color .15s;
 }
@@ -260,7 +259,7 @@ async function handleSubmit() {
 
 .cart-footer { padding: 12px 14px 18px; border-top: 1px solid #21262d; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
 .cart-note {
-  width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  width: 100%; background: var(--glass-bg); border: 1px solid #30363d; border-radius: 6px;
   color: #c9d1d9; font-size: 12px; font-family: 'JetBrains Mono', monospace;
   padding: 8px 10px; resize: none; outline: none; transition: border-color .15s;
   box-sizing: border-box;

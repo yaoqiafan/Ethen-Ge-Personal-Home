@@ -76,6 +76,9 @@ const project = {
   flex-direction: column;
   gap: 1rem;
   height: 100%;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
 }
 
 .header-dot {

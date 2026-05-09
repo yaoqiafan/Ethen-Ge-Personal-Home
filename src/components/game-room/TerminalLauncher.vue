@@ -168,7 +168,7 @@ function historyDown(): void {
 }
 
 .terminal-frame {
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 8px;
   overflow: hidden;
@@ -181,7 +181,7 @@ function historyDown(): void {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: #161b22;
+  background: var(--glass-bg); 
   border-bottom: 1px solid #21262d;
 }
 .term-dot {

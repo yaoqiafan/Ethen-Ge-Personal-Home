@@ -315,7 +315,7 @@ function handleSubmitScore() {
 /* Grid */
 .g2-grid-wrap {
   position: relative;
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 8px;
   padding: 8px;
@@ -332,7 +332,7 @@ function handleSubmitScore() {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   font-weight: 800;
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
@@ -341,7 +341,7 @@ function handleSubmitScore() {
 /* Tile values */
 .tile-val { font-size: 22px; }
 
-.tile-2  { background: #161b22; color: #7d8590; border-color: #30363d; }
+.tile-2  { background: var(--glass-bg); color: #7d8590; border-color: #30363d; }
 .tile-2 .tile-val { font-size: 22px; }
 .tile-4  { background: #1c2230; color: #c9d1d9; border-color: #30363d; }
 .tile-8  { background: rgba(249, 115, 22, 0.15); color: #f97316; border-color: rgba(249, 115, 22, 0.3); }

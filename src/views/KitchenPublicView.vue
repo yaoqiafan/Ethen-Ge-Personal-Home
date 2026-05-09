@@ -164,7 +164,7 @@ function handleError() {
 <style scoped>
 .menu-page {
   min-height: 100vh;
-  background: #0d1117;
+  background: var(--glass-bg); 
   color: #e6edf3;
   font-family: 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
   display: flex;
@@ -175,14 +175,13 @@ function handleError() {
 
 /* ── 头部 ─────────────────────────────────────────────────────────────────── */
 .menu-header {
-  background: #161b22;
+  background: var(--glass-bg); 
   border-bottom: 1px solid #21262d;
   border-bottom-color: rgba(249,115,22,.25);
   padding: 16px 16px 10px;
   position: sticky;
   top: 0;
   z-index: 100;
-  backdrop-filter: blur(12px);
 }
 .menu-header-inner {
   display: flex; align-items: center; justify-content: space-between;
@@ -240,7 +239,7 @@ function handleError() {
 }
 .dish-skeleton {
   height: 200px; border-radius: 10px;
-  background: #161b22; border: 1px solid #21262d;
+  background: var(--glass-bg); border: 1px solid #21262d;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 @keyframes shimmer { 0%,100% { opacity:1; } 50% { opacity:.45; } }

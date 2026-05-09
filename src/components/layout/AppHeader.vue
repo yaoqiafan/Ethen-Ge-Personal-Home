@@ -85,7 +85,6 @@ onUnmounted(() => {
   flex-shrink: 0;
   gap: 10px;
   /* Glassmorphism */
-  backdrop-filter: blur(16px);
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }

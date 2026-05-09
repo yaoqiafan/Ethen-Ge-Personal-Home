@@ -400,7 +400,7 @@ onUnmounted(() => {
   text-align: center;
   transition: all 0.15s;
   border: 1px solid #21262d;
-  background: #161b22;
+  background: var(--glass-bg); 
 }
 .diff-btn:hover {
   border-color: #30363d;
@@ -433,7 +433,7 @@ onUnmounted(() => {
 .mode-toggle {
   display: flex;
   gap: 2px;
-  background: #161b22;
+  background: var(--glass-bg); 
   border-radius: 4px;
   border: 1px solid #21262d;
   overflow: hidden;
@@ -462,7 +462,7 @@ onUnmounted(() => {
 .ms-grid {
   display: grid;
   gap: 1px;
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 4px;
   padding: 3px;
@@ -495,7 +495,7 @@ onUnmounted(() => {
   border: 1px solid rgba(227, 179, 65, 0.3);
 }
 .cell-revealed {
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid rgba(33, 38, 45, 0.5);
   cursor: default;
 }

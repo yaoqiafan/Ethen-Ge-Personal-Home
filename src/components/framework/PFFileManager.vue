@@ -10,7 +10,7 @@
           v-model="searchQuery"
           type="text"
           placeholder="搜索文件名或内容..."
-          class="w-full rounded-md border border-[#30363d] bg-[#0d1117] pl-7 pr-3 py-1.5
+          class="w-full rounded-md border border-[#30363d] glass-bg pl-7 pr-3 py-1.5
                  font-mono text-xs text-[#c9d1d9] placeholder-[#484f58]
                  outline-none focus:border-[#39d353]/50 transition-colors"
           @keydown.enter="doSearch"
@@ -20,7 +20,7 @@
       <!-- 类型过滤 -->
       <select
         v-model="filterType"
-        class="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5
+        class="rounded-md border border-[#30363d] glass-bg px-2 py-1.5
                font-mono text-xs text-[#7d8590] outline-none cursor-pointer
                focus:border-[#39d353]/50 transition-colors"
         @change="loadFiles"
@@ -34,7 +34,7 @@
       <!-- 排序 -->
       <select
         v-model="sortBy"
-        class="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5
+        class="rounded-md border border-[#30363d] glass-bg px-2 py-1.5
                font-mono text-xs text-[#7d8590] outline-none cursor-pointer
                focus:border-[#39d353]/50 transition-colors"
         @change="loadFiles"
@@ -59,7 +59,7 @@
         <template v-if="loading && !fileList.length">
           <div
             v-for="i in 5" :key="i"
-            class="h-9 rounded-md bg-[#161b22] animate-pulse"
+            class="h-9 rounded-md glass-bg animate-pulse"
           />
         </template>
 
@@ -131,7 +131,7 @@
           <!-- 内容展示 -->
           <div
             v-else-if="fileContent"
-            class="flex-1 overflow-y-auto rounded-md bg-[#0d1117] border border-[#21262d]
+            class="flex-1 overflow-y-auto rounded-md glass-bg border border-[#21262d]
                    p-3 font-mono text-[11px] text-[#c9d1d9] leading-relaxed whitespace-pre-wrap break-all"
           >{{ fileContent }}</div>
 
@@ -145,7 +145,7 @@
 
     <!-- 搜索结果面板 -->
     <transition name="slide-down">
-      <div v-if="searchResults.length" class="rounded-lg border border-[#21262d] bg-[#161b22] p-3">
+      <div v-if="searchResults.length" class="rounded-lg border border-[#21262d] glass-bg p-3">
         <div class="font-mono text-xs text-[#484f58] mb-2">
           搜索「{{ lastQuery }}」— 共 {{ searchResults.length }} 条结果
         </div>

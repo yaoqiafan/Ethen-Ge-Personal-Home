@@ -330,7 +330,7 @@ onMounted(fetchPackages)
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 6px;
   gap: 12px;
@@ -440,7 +440,7 @@ onMounted(fetchPackages)
 .skeleton { height: 72px; animation: shimmer 1.5s ease-in-out infinite; }
 .pkg-skeleton {
   height: 72px; border-radius: 8px; padding: 14px;
-  background: #161b22; border: 1px solid #21262d;
+  background: var(--glass-bg); border: 1px solid #21262d;
   display: flex; flex-direction: column; gap: 8px;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -459,7 +459,7 @@ onMounted(fetchPackages)
   gap: 8px;
 }
 .stat-card {
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 7px;
   padding: 12px 14px;
@@ -483,7 +483,7 @@ onMounted(fetchPackages)
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #30363d;
   border-radius: 6px;
   transition: border-color .2s;
@@ -501,7 +501,7 @@ onMounted(fetchPackages)
 .pkg-list { display: flex; flex-direction: column; gap: 6px; }
 
 .pkg-card {
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 8px;
   overflow: hidden;
@@ -650,7 +650,7 @@ onMounted(fetchPackages)
 }
 .cmd-text {
   font-size: 11px; color: #7d8590;
-  background: #0d1117; border: 1px solid #21262d; border-radius: 3px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 3px;
   padding: 2px 7px; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 380px;
 }

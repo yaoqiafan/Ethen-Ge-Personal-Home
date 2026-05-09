@@ -83,6 +83,9 @@ onMounted(() => { conversations.value = loadConversations() })
   flex-direction: column;
   gap: 0.75rem;
   height: 100%;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
 }
 .header-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 50%;

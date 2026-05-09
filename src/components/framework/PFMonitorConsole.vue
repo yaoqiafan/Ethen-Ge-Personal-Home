@@ -74,7 +74,7 @@
     <!-- 日志输出窗口 -->
     <div
       ref="logEl"
-      class="relative rounded-md border border-[#21262d] bg-[#0d1117]
+      class="relative rounded-md border border-[#21262d] glass-bg
              h-64 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed
              scroll-smooth"
     >
@@ -295,13 +295,16 @@ onMounted(async () => {
 
 <style scoped>
 .pf-btn {
-  @apply flex items-center gap-1.5 rounded-md border border-[#30363d] bg-[#21262d]
-         px-3 py-1.5 font-mono text-xs text-[#7d8590]
-         transition-all duration-150 cursor-pointer
-         hover:border-[#39d353]/40 hover:text-[#c9d1d9]
-         disabled:opacity-40 disabled:cursor-not-allowed;
+  display: flex; align-items: center; gap: 0.375rem;
+  border-radius: 0.375rem; border: 1px solid #30363d;
+  background: var(--glass-bg);
+  padding: 0.25rem 0.5rem;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #7d8590;
+  transition: all 0.15s ease; cursor: pointer;
 }
-.pf-btn-green { @apply hover:border-[#39d353]/60 hover:text-terminal-green; }
-.pf-btn-red   { @apply hover:border-terminal-red/60 hover:text-terminal-red; }
-.pf-btn-yellow{ @apply hover:border-[#e3b341]/60 hover:text-terminal-yellow; }
+.pf-btn:hover { border-color: rgba(57, 211, 83, 0.4); color: #c9d1d9; }
+.pf-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pf-btn-green:hover { border-color: rgba(57, 211, 83, 0.6); color: #39d353; }
+.pf-btn-red:hover { border-color: rgba(255, 123, 114, 0.6); color: #ff7b72; }
+.pf-btn-yellow:hover { border-color: rgba(227, 179, 65, 0.6); color: #e3b341; }
 </style>

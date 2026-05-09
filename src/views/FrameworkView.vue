@@ -160,7 +160,7 @@ function handleTabClick(id: string) {
   flex-wrap: wrap;
   gap: 12px;
   padding: 14px 16px;
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 8px;
   border-top: 2px solid rgba(57, 211, 83, 0.4);
@@ -198,7 +198,7 @@ function handleTabClick(id: string) {
 .tab-nav {
   display: flex;
   gap: 4px;
-  background: #161b22;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 8px;
   padding: 6px;
@@ -211,7 +211,7 @@ function handleTabClick(id: string) {
   gap: 6px;
   padding: 6px 14px;
   border-radius: 5px;
-  background: transparent;
+  background: var(--glass-bg);
   border: 1px solid transparent;
   color: #7d8590;
   font-size: 12px;
@@ -222,11 +222,12 @@ function handleTabClick(id: string) {
 }
 .tab-btn:hover {
   color: #c9d1d9;
-  background: rgba(255,255,255,.04);
+  background: rgba(255,255,255,.06);
+  border-color: var(--glass-border);
 }
 .tab-btn.active {
   color: #39d353;
-  background: rgba(57,211,83,.08);
+  background: rgba(57,211,83,.12);
   border-color: rgba(57,211,83,.25);
 }
 

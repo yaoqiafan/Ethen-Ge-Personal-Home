@@ -55,7 +55,6 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   z-index: 20;
-  backdrop-filter: blur(4px);
 }
 
 .overlay-card {

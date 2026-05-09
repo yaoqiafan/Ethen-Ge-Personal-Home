@@ -50,7 +50,6 @@ defineExpose({ show })
   border-radius: 8px;
   font-size: 13px;
   font-family: 'JetBrains Mono', monospace;
-  backdrop-filter: blur(8px);
   box-shadow: 0 8px 32px rgba(0,0,0,.4);
   white-space: nowrap;
   pointer-events: none;

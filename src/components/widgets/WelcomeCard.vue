@@ -84,6 +84,8 @@ onMounted(() => {
   align-items: center;
   gap: 2rem;
   border-radius: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 
 .wc-left {
@@ -92,6 +94,10 @@ onMounted(() => {
   gap: 16px;
   flex: 1;
   min-width: 0;
+  background: var(--glass-bg);
+  border-radius: 8px;
+  padding: 0.5rem;
+  border: 1px solid var(--glass-border);
 }
 
 .wc-avatar {
@@ -174,8 +180,10 @@ onMounted(() => {
   display: flex;
   gap: 1.5rem;
   flex-shrink: 0;
-  padding-left: 1.5rem;
-  border-left: 1px solid #21262d;
+  padding: 0.5rem 1rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
 }
 .wc-stat {
   text-align: center;

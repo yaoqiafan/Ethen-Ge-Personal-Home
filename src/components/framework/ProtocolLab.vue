@@ -260,7 +260,7 @@ const mockDevices = [
 
 /* ── 头部 ─────────────────────────────────── */
 .lab-header {
-  background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 16px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px; padding: 16px;
 }
 .lab-title-row {
   display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
@@ -320,7 +320,7 @@ const mockDevices = [
 /* ── 预览网格 ─────────────────────────────── */
 .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .preview-card {
-  background: #161b22; border: 1px solid #21262d; border-radius: 8px; overflow: hidden;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px; overflow: hidden;
 }
 .preview-card--secs  { border-top: 2px solid rgba(57,211,83,.3); }
 .preview-card--modbus{ border-top: 2px solid rgba(88,166,255,.3); }
@@ -353,7 +353,7 @@ const mockDevices = [
 .pc-terminal { border-top: 1px solid #21262d; }
 .terminal-bar {
   display: flex; align-items: center; gap: 5px; padding: 6px 10px;
-  background: #0d1117; border-bottom: 1px solid #21262d;
+  background: var(--glass-bg); border-bottom: 1px solid #21262d;
 }
 .tb-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .tb-dot.red    { background: #f85149; }
@@ -361,7 +361,7 @@ const mockDevices = [
 .tb-dot.green  { background: #39d353; }
 .tb-title { font-size: 10px; color: #484f58; margin-left: 4px; font-family: 'JetBrains Mono', monospace; }
 
-.terminal-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; background: #0d1117; }
+.terminal-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; background: var(--glass-bg); }
 .tl { display: flex; gap: 8px; font-size: 10px; font-family: 'JetBrains Mono', monospace; align-items: center; }
 .tl-time { color: #484f58; flex-shrink: 0; }
 .tl-dir { flex-shrink: 0; font-weight: 700; width: 44px; }
@@ -395,7 +395,7 @@ const mockDevices = [
 .diag-desc { font-size: 11px; color: #7d8590; line-height: 1.7; margin-bottom: 12px; }
 .diag-mockup { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .dev-card {
-  background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 6px;
   padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 5px;
   transition: border-color .2s;
 }
@@ -417,7 +417,7 @@ const mockDevices = [
 /* ── 技术栈说明 ───────────────────────────── */
 .tech-note {
   font-size: 11px; color: #484f58; line-height: 1.7;
-  padding: 10px 12px; background: #161b22; border: 1px solid #21262d;
+  padding: 10px 12px; background: var(--glass-bg); border: 1px solid #21262d;
   border-radius: 6px; display: flex; gap: 6px; align-items: flex-start;
 }
 .tn-icon { color: #39d353; flex-shrink: 0; }

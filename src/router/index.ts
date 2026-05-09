@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import EnterView from '@/views/EnterView.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import EnterView from '@/views/EnterView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import FrameworkView from '@/views/FrameworkView.vue'
 import AIToolboxView from '@/views/AIToolboxView.vue'
@@ -11,11 +11,6 @@ import GameRoomView from '@/views/GameRoomView.vue'
 
 const routes: RouteRecordRaw[] = [
   {
-    path: '/',
-    name: 'enter',
-    component: EnterView,
-  },
-  {
     path: '/menu',
     name: 'menu',
     component: KitchenPublicView,
@@ -24,6 +19,12 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: AppLayout,
     children: [
+      {
+        path: '',
+        name: 'enter',
+        component: EnterView,
+        meta: { title: '首页', titleCN: 'Home' },
+      },
       {
         path: 'dashboard',
         name: 'dashboard',

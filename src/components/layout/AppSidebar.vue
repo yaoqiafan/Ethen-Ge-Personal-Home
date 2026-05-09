@@ -174,7 +174,7 @@ onUnmounted(() => {
   width: 220px;
   flex-shrink: 0;
   height: 100vh;
-  background: #0d1117;
+  background: rgba(13, 17, 23, 0.40); 
   border-right: 1px solid #21262d;
   display: flex;
   flex-direction: column;

@@ -167,7 +167,7 @@ function formatDate(iso: string): string {
 .player-input {
   flex: 1;
   min-width: 120px;
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 4px;
   padding: 6px 10px;

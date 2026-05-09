@@ -211,7 +211,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #0d1117;
+  background: var(--glass-bg); 
   border: 1px solid #21262d;
   border-radius: 6px;
   flex-wrap: wrap;
@@ -221,7 +221,7 @@ onMounted(() => {
 
 .repo-input-wrap { flex: 1; min-width: 180px; }
 .repo-input {
-  width: 100%; background: #161b22; border: 1px solid #30363d;
+  width: 100%; background: var(--glass-bg); border: 1px solid #30363d;
   border-radius: 4px; padding: 4px 8px; font-size: 12px;
   color: #e6edf3; outline: none; font-family: 'JetBrains Mono', monospace;
   transition: border-color .2s;
@@ -254,7 +254,7 @@ onMounted(() => {
 
 /* ── 加载态 ──────────────────────────────── */
 .loading-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.load-card.skeleton { height: 120px; border-radius: 8px; background: #161b22; border: 1px solid #21262d; animation: shimmer 1.5s ease-in-out infinite; }
+.load-card.skeleton { height: 120px; border-radius: 8px; background: var(--glass-bg); border: 1px solid #21262d; animation: shimmer 1.5s ease-in-out infinite; }
 @keyframes shimmer { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 /* ── 错误态 ──────────────────────────────── */
@@ -275,7 +275,7 @@ onMounted(() => {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
 }
 .rs-card {
-  background: #161b22; border: 1px solid #21262d; border-radius: 7px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 7px;
   padding: 10px; text-align: center; transition: border-color .2s;
 }
 .rs-card:hover { border-color: rgba(57,211,83,.3); }
@@ -285,7 +285,7 @@ onMounted(() => {
 
 .repo-desc {
   font-size: 12px; color: #7d8590;
-  padding: 8px 12px; background: #161b22; border: 1px solid #21262d;
+  padding: 8px 12px; background: var(--glass-bg); border: 1px solid #21262d;
   border-radius: 5px; display: flex; align-items: flex-start; gap: 6px;
 }
 .rd-icon { color: #39d353; flex-shrink: 0; }
@@ -299,7 +299,7 @@ onMounted(() => {
 }
 
 .pulse-section {
-  background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px;
   overflow: hidden;
 }
 

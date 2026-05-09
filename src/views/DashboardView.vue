@@ -1,6 +1,6 @@
 <template>
-  <div class="dashboard animate-fade-in">
-    <!-- Welcome card -->
+  <div class="dashboard animate-fade-in-up">
+    <!-- Welcome -->
     <WelcomeCard class="dashboard-welcome" />
 
     <!-- Stat row -->
@@ -9,7 +9,7 @@
         v-for="(stat, i) in statCards"
         :key="stat.id"
         class="stat-card glass-card"
-        :style="{ animationDelay: `${0.1 + i * 0.05}s` }"
+        :style="{ animationDelay: `${0.1 + i * 0.06}s` }"
       >
         <div class="stat-icon" :style="{ color: stat.color }">{{ stat.icon }}</div>
         <div class="stat-body">
@@ -20,7 +20,7 @@
       </div>
     </div>
 
-    <!-- Main widget grid -->
+    <!-- Widget grid -->
     <div class="widget-grid">
       <div class="widget-fw">
         <FrameworkWidget />
@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <!-- Garage widget -->
+    <!-- Garage -->
     <GarageWidget />
   </div>
 </template>
@@ -84,6 +84,7 @@ const statCards: StatCard[] = [
   flex-direction: column;
   gap: 1rem;
   max-width: 1200px;
+  margin: 0 auto;
 }
 
 .dashboard-welcome {
@@ -102,8 +103,20 @@ const statCards: StatCard[] = [
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  opacity: 0;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  opacity: 1;
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
+  background: var(--glass-bg-hover);
+  border-color: rgba(2, 173, 139, 0.4);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(2, 173, 139, 0.08);
 }
 
 .stat-icon {
@@ -112,18 +125,13 @@ const statCards: StatCard[] = [
   margin-top: 1px;
   line-height: 1;
 }
-
-.stat-body {
-  min-width: 0;
-}
-
+.stat-body { min-width: 0; }
 .stat-value {
   font-size: 20px;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
-
 .stat-label {
   font-size: 11px;
   color: #c9d1d9;
@@ -133,7 +141,6 @@ const statCards: StatCard[] = [
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .stat-sub {
   font-size: 10px;
   color: #484f58;
@@ -149,17 +156,14 @@ const statCards: StatCard[] = [
   grid-template-columns: 2fr 1fr;
   gap: 0.75rem;
 }
-
 .widget-fw, .widget-ai {
   display: flex;
   flex-direction: column;
 }
-.widget-fw > *, .widget-ai > * {
-  flex: 1;
-}
+.widget-fw > *, .widget-ai > * { flex: 1; }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(16px); }
+  from { opacity: 1; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -167,7 +171,6 @@ const statCards: StatCard[] = [
   .stat-row { grid-template-columns: repeat(2, 1fr); }
   .widget-grid { grid-template-columns: 1fr; }
 }
-
 @media (max-width: 540px) {
   .stat-row { grid-template-columns: 1fr; }
 }

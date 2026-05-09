@@ -630,7 +630,7 @@ watch(activeTab, (tab) => {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;
   padding: 14px 16px;
-  background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px;
   border-top: 2px solid rgba(227,179,65,.5);
 }
 .ah-left { display: flex; align-items: center; gap: 12px; }
@@ -649,7 +649,7 @@ watch(activeTab, (tab) => {
 .tab-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 16px; border-radius: 7px; cursor: pointer;
-  background: #161b22; border: 1px solid #21262d;
+  background: var(--glass-bg); border: 1px solid #21262d;
   color: #7d8590; font-size: 13px; font-family: 'JetBrains Mono', monospace;
   transition: all .2s;
 }
@@ -682,7 +682,7 @@ watch(activeTab, (tab) => {
 .skeleton-list { display: flex; flex-direction: column; gap: 8px; }
 .skeleton-row {
   height: 54px; border-radius: 7px;
-  background: #161b22; border: 1px solid #21262d;
+  background: var(--glass-bg); border: 1px solid #21262d;
   animation: shimmer 1.5s ease-in-out infinite;
 }
 @keyframes shimmer { 0%,100% { opacity:1; } 50% { opacity:.4; } }
@@ -699,11 +699,11 @@ watch(activeTab, (tab) => {
 .dish-row {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px; border-radius: 7px;
-  border: 1px solid #21262d; background: #0d1117;
+  border: 1px solid #21262d; background: var(--glass-bg); 
 }
 .dr-img-wrap {
   width: 40px; height: 40px; border-radius: 6px; overflow: hidden;
-  background: #161b22; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--glass-bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center;
 }
 .dr-img { width: 100%; height: 100%; object-fit: cover; }
 .dr-emoji { font-size: 20px; }
@@ -729,14 +729,14 @@ watch(activeTab, (tab) => {
 
 /* ── 菜品表单 ────────────────────────────────────────────────────────────── */
 .dish-form-wrap {
-  background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 16px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px; padding: 16px;
 }
 .form-title { font-size: 13px; font-weight: 700; color: #c9d1d9; margin-bottom: 14px; }
 .dish-form { display: flex; flex-direction: column; gap: 12px; }
 .upload-zone {
   width: 100%; aspect-ratio: 16/9; border-radius: 8px; border: 2px dashed #30363d;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .2s; overflow: hidden; background: #0d1117;
+  cursor: pointer; transition: all .2s; overflow: hidden; background: var(--glass-bg); 
 }
 .upload-zone:hover, .upload-zone--dragging { border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.03); }
 .upload-zone--has-img { border-style: solid; border-color: rgba(249,115,22,.3); }
@@ -754,13 +754,13 @@ watch(activeTab, (tab) => {
 .form-field { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 11px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
 .form-input {
-  background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+  background: var(--glass-bg); border: 1px solid #30363d; border-radius: 6px;
   color: #c9d1d9; font-size: 12px; font-family: 'JetBrains Mono', monospace;
   padding: 7px 10px; outline: none; transition: border-color .15s;
   width: 100%; box-sizing: border-box;
 }
 .form-input:focus { border-color: rgba(249,115,22,.45); }
-.form-select option { background: #161b22; }
+.form-select option { background: var(--glass-bg); }
 .form-textarea { resize: vertical; min-height: 56px; }
 .form-row { flex-direction: row; gap: 10px; }
 .form-half { flex: 1; display: flex; flex-direction: column; gap: 5px; }
@@ -788,7 +788,7 @@ watch(activeTab, (tab) => {
 
 /* ── 工单管理 ────────────────────────────────────────────────────────────── */
 .session-create-box {
-  background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
+  background: var(--glass-bg); border: 1px solid #21262d; border-radius: 8px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
 }
 .sc-label { font-size: 11px; color: #7d8590; font-family: 'JetBrains Mono', monospace; }
@@ -822,7 +822,7 @@ watch(activeTab, (tab) => {
 .session-list { display: flex; flex-direction: column; gap: 8px; }
 .session-row {
   border: 1px solid #21262d; border-radius: 8px; padding: 12px 14px;
-  background: #0d1117; display: flex; flex-direction: column; gap: 6px;
+  background: var(--glass-bg); display: flex; flex-direction: column; gap: 6px;
 }
 .sr-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .sr-info { display: flex; align-items: center; gap: 8px; }
@@ -841,7 +841,7 @@ watch(activeTab, (tab) => {
 .sr-items-empty { color: #484f58; font-size: 11px; }
 .sr-item {
   display: flex; align-items: center; gap: 7px;
-  padding: 4px 8px; background: #161b22; border-radius: 5px; font-size: 12px;
+  padding: 4px 8px; background: var(--glass-bg); border-radius: 5px; font-size: 12px;
 }
 .sri-icon { font-size: 14px; }
 .sri-name { flex: 1; color: #c9d1d9; }
@@ -860,7 +860,7 @@ watch(activeTab, (tab) => {
 .req-row {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 14px; border-radius: 7px;
-  border: 1px solid rgba(139,92,246,.2); background: #0d1117;
+  border: 1px solid rgba(139,92,246,.2); background: var(--glass-bg); 
 }
 .req-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .req-icon { font-size: 20px; flex-shrink: 0; }
@@ -870,7 +870,7 @@ watch(activeTab, (tab) => {
 .req-actions { flex-shrink: 0; }
 .req-already-added { font-size: 11px; color: #39d353; font-family: 'JetBrains Mono', monospace; }
 .promote-form-wrap {
-  background: #0d1117; border: 1px solid rgba(139,92,246,.3);
+  background: var(--glass-bg); border: 1px solid rgba(139,92,246,.3);
   border-radius: 8px; padding: 16px; margin-top: 4px;
 }
 .promote-form-title { font-size: 13px; font-weight: 700; color: #a78bfa; margin-bottom: 14px; }

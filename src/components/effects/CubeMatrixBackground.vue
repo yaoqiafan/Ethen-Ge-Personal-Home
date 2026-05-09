@@ -286,8 +286,6 @@ onUnmounted(() => {
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  backdrop-filter: blur(10px) saturate(0.5);
-  -webkit-backdrop-filter: blur(10px) saturate(0.5);
   background: rgba(2, 6, 23, 0.22);
   mask-image: radial-gradient(
     circle 340px at var(--mx, 50%) var(--my, 50%),
