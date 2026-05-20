@@ -107,8 +107,16 @@ async function sendSubscribeMsg(openid: string, session: OrderSession): Promise<
     hour: '2-digit', minute: '2-digit',
   })
 
-  // ⚠️ 以下字段名（thing1、time2、thing3）需与公众平台实际模板的关键词 ID 保持一致
-  // 可在「小程序后台 → 功能 → 订阅消息 → 我的模板」中查看具体字段名
+  // 模板「订单状态提醒」(524) 字段：
+  //   thing1  → 订单内容
+  //   phrase2 → 订单状态（固定短语，如"已完成"）
+  //   date3   → 下单时间
+  //   thing5  → 备注
+  //   time16  → 完成时间
+  const startTime = new Date(session.createdAt).toLocaleString('zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
   const body = {
     touser: openid,
     template_id: WX_TMPL_ID,
@@ -116,9 +124,11 @@ async function sendSubscribeMsg(openid: string, session: OrderSession): Promise<
     miniprogram_state: 'formal',
     lang: 'zh_CN',
     data: {
-      thing1: { value: session.name.slice(0, 20) },
-      time2:  { value: endTime },
-      thing3: { value: `共${totalDishes}道菜，感谢用餐！` },
+      thing1:  { value: `${session.name.slice(0, 14)}，共${totalDishes}道菜` },
+      phrase2: { value: '已完成' },
+      date3:   { value: startTime },
+      thing5:  { value: '感谢用餐，欢迎下次光临！' },
+      time16:  { value: endTime },
     },
   }
 
