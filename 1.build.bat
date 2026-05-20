@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo   Stopless Lab - Build Script v2.0
+echo   Stopless Lab - Build Script v2.1
 echo ========================================
 echo.
 
@@ -52,6 +52,9 @@ if not exist "dist" (
 )
 
 if exist "dist\web.config" del "dist\web.config"
+if exist "web.config" del "web.config"
+
+set WEBCONFIG_CONTENT=^<?xml version="1.0" encoding="UTF-8"?^>
 
 (
 echo ^<?xml version="1.0" encoding="UTF-8"?^>
@@ -80,16 +83,26 @@ echo           ^</serverVariables^>
 echo           ^<action type="Rewrite" url="http://127.0.0.1:18789/v1/{R:1}" /^>
 echo         ^</rule^>
 echo.
+echo         ^<!-- Kitchen API Proxy --^>
+echo         ^<rule name="Kitchen API Proxy" stopProcessing="true"^>
+echo           ^<match url="^^api/kitchen/(.*)" /^>
+echo           ^<action type="Rewrite" url="http://localhost:3004/{R:1}" /^>
+echo         ^</rule^>
+echo.
+echo         ^<!-- PF WebSocket Adapter Proxy (must be before PF API to avoid being swallowed) --^>
+echo         ^<rule name="PF WebSocket Proxy" stopProcessing="true"^>
+echo           ^<match url="^^api/v1/ws" /^>
+echo           ^<serverVariables^>
+echo             ^<set name="HTTP_UPGRADE" value="{HTTP_UPGRADE}" /^>
+echo             ^<set name="HTTP_CONNECTION" value="{HTTP_CONNECTION}" /^>
+echo           ^</serverVariables^>
+echo           ^<action type="Rewrite" url="http://localhost:3002" /^>
+echo         ^</rule^>
+echo.
 echo         ^<!-- PF API Adapter Proxy (HTTP) --^>
 echo         ^<rule name="PF API Proxy" stopProcessing="true"^>
 echo           ^<match url="^^api/v1/(.*)" /^>
 echo           ^<action type="Rewrite" url="http://localhost:3001/api/v1/{R:1}" /^>
-echo         ^</rule^>
-echo.
-echo         ^<!-- PF WebSocket Adapter Proxy --^>
-echo         ^<rule name="PF WebSocket Proxy" stopProcessing="true"^>
-echo           ^<match url="^^api/v1/ws" /^>
-echo           ^<action type="Rewrite" url="http://localhost:3002" /^>
 echo         ^</rule^>
 echo.
 echo         ^<!-- Vue Router History Mode Fallback --^>
@@ -113,9 +126,11 @@ echo       ^</customHeaders^>
 echo     ^</httpProtocol^>
 echo   ^</system.webServer^>
 echo ^</configuration^>
-) > "dist\web.config"
+) > "web.config"
 
-echo [OK] web.config generated.
+copy "web.config" "dist\web.config" >nul
+
+echo [OK] web.config generated (root + dist\).
 
 rem -- Record end time --
 set END_TIME=%TIME%
