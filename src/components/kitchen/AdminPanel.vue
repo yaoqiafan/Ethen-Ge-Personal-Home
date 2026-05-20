@@ -364,7 +364,9 @@ async function doCreateSession() {
 async function doCloseSession(id: string) {
   if (!confirm('确认结束该工单？结束后家人将无法继续点菜。')) return
   try {
-    await kitchenSvc.closeSession(id)
+    // 必须通过 API 服务器关闭，才能触发微信订阅消息推送
+    const res = await fetch(`https://stoplesslab.com/api/kitchen/session/${id}/close`, { method: 'PUT' })
+    if (!res.ok) throw new Error(`关闭失败: ${res.status}`)
     await loadSessions()
     if (expandedId.value === id) expandedId.value = null
   } catch (e) {
