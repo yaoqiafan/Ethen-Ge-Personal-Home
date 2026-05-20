@@ -14,9 +14,10 @@ const PUSH_URL: string = import.meta.env.VITE_PUSH_URL as string ?? ''
 const PUSH_KEY: string = import.meta.env.VITE_PUSH_KEY as string ?? ''
 
 function buildOrderText(order: OrderPayload): { title: string; body: string } {
-  const lines = order.items.map(
-    item => `${item.dish.name} × ${item.quantity}`
-  )
+  const lines = order.items.map(item => {
+    const pref = item.preferences?.length ? ` [${item.preferences.join('、')}]` : ''
+    return `${item.dish.name} × ${item.quantity}${pref}`
+  })
   const title = `🍽️ 新点单 — ${order.items.length} 道菜`
   const body = [
     ...lines,

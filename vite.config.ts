@@ -12,6 +12,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // Kitchen API → kitchen-api 本地服务（:3004）
+      '/api/kitchen': {
+        target: 'http://localhost:3004',
+        rewrite: (path) => path.replace(/^\/api\/kitchen/, ''),
+        changeOrigin: true,
+      },
+
       // /nuget/* → http://101.43.39.163:8081/* （与 IIS 生产路径保持一致；dev 目标为远端 BaGet）
       '/nuget': {
         target: 'http://101.43.39.163:8081',

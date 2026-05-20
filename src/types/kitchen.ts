@@ -25,7 +25,8 @@ export interface Dish {
 export interface CartItem {
   dish: Dish
   quantity: number
-  submittedQty?: number // 已成功推送给大厨的数量，undefined / 0 表示未提交
+  submittedQty?: number  // 已成功推送给大厨的数量，undefined / 0 表示未提交
+  preferences?: string[] // 忌口，如 ['不吃葱', '少油']
 }
 
 export interface OrderPayload {

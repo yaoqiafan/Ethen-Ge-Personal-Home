@@ -1,0 +1,24 @@
+{
+  "name": "kitchen-api",
+  "version": "1.0.0",
+  "description": "家庭厨房点单 API 代理服务",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "start": "tsx server.ts",
+    "pm2": "pm2 start ecosystem.config.cjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "cos-js-sdk-v5": "^1.8.9",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "serverchan-sdk": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0"
+  }
+}
