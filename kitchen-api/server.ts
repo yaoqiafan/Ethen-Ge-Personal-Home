@@ -1,8 +1,13 @@
 import 'dotenv/config'
 import { createHmac, createHash } from 'crypto'
+import { Agent } from 'undici'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
+
+// undici 默认会尝试 IPv6，在某些 Windows 服务器上连接微信 API 会超时
+// 强制 IPv4 family 解决此问题
+const _wxAgent = new Agent({ connect: { family: 4 } })
 
 // ── 环境变量 ──────────────────────────────────────────────────────────────────
 const PORT        = Number(process.env.PORT)                  || 3004
@@ -92,7 +97,7 @@ let _wxTokenExp = 0
 async function getWxToken(): Promise<string> {
   if (_wxToken && Date.now() < _wxTokenExp) return _wxToken
   if (!WX_APP_ID || !WX_SECRET) throw new Error('未配置 WX_APP_ID / WX_APP_SECRET')
-  const res = await fetch(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WX_APP_ID}&secret=${WX_SECRET}`)
+  const res = await fetch(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WX_APP_ID}&secret=${WX_SECRET}`, { dispatcher: _wxAgent } as any)
   const d = await res.json() as any
   if (!d.access_token) throw new Error(`获取 access_token 失败: ${d.errmsg}`)
   _wxToken = d.access_token
@@ -102,7 +107,7 @@ async function getWxToken(): Promise<string> {
 
 // ── 微信 code 换 openid ────────────────────────────────────────────────────────
 async function code2openid(code: string): Promise<string> {
-  const res = await fetch(`https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APP_ID}&secret=${WX_SECRET}&js_code=${code}&grant_type=authorization_code`)
+  const res = await fetch(`https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APP_ID}&secret=${WX_SECRET}&js_code=${code}&grant_type=authorization_code`, { dispatcher: _wxAgent } as any)
   const d = await res.json() as any
   if (!d.openid) throw new Error(`code2session 失败: ${d.errmsg}`)
   return d.openid as string
@@ -147,7 +152,8 @@ async function sendSubscribeMsg(openid: string, session: OrderSession): Promise<
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  })
+    dispatcher: _wxAgent,
+  } as any)
   const result = await res.json() as any
   if (result.errcode && result.errcode !== 0) {
     throw new Error(`订阅消息发送失败: ${result.errmsg} (${result.errcode})`)
