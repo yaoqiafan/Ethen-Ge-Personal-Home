@@ -1,8 +1,13 @@
 import 'dotenv/config'
+import { createRequire } from 'module'
 import express from 'express'
 import cors from 'cors'
-import COS from 'cos-nodejs-sdk-v5'
 import { scSend } from 'serverchan-sdk'
+
+const _require = createRequire(import.meta.url)
+// cos-nodejs-sdk-v5 是 CJS 包，ESM 下直接 import 会导致其 Node.js HTTP 补丁失效
+// 用 createRequire 强制以 CJS 方式加载，确保 XMLHttpRequest polyfill 正确注入
+const COS = _require('cos-nodejs-sdk-v5') as typeof import('cos-nodejs-sdk-v5')
 
 // ── 环境变量 ──────────────────────────────────────────────────────────────────
 const PORT        = Number(process.env.PORT)                  || 3004
