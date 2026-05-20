@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import COS from 'cos-js-sdk-v5'
+import COS from 'cos-nodejs-sdk-v5'
 import { scSend } from 'serverchan-sdk'
 
 // ── 环境变量 ──────────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "cos-js-sdk-v5": "^1.8.9",
+    "cos-nodejs-sdk-v5": "^2.14.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "serverchan-sdk": "^1.0.4"
