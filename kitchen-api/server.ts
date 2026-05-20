@@ -259,11 +259,12 @@ app.put('/session/:sid/cart', async (req, res) => {
 
 // POST /session/:sid/subscribe — 用户订阅消息：code 换 openid 并存储
 app.post('/session/:sid/subscribe', async (req, res) => {
+  if (!WX_APP_ID || !WX_SECRET) {
+    // 未配置微信凭证，静默跳过（不报错，避免前端看到失败）
+    res.json({ ok: true, note: '未配置 WX_APP_SECRET，已跳过' })
+    return
+  }
   try {
-    if (!WX_APP_ID || !WX_SECRET) {
-      res.json({ ok: true, note: '未配置微信订阅消息，已跳过' })
-      return
-    }
     const { code } = req.body
     if (!code) { res.status(400).json({ error: '缺少 code' }); return }
 
@@ -271,7 +272,16 @@ app.post('/session/:sid/subscribe', async (req, res) => {
     const idx = sessions.findIndex(s => s.id === req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
 
-    const openid = await code2openid(code)
+    let openid: string
+    try {
+      openid = await code2openid(code)
+    } catch (e: any) {
+      // 凭证错误或 code 过期时不阻塞，直接跳过
+      console.warn('[Subscribe] code2openid 失败（检查 WX_APP_SECRET 是否正确）:', e.message)
+      res.json({ ok: true, note: 'openid 获取失败，已跳过' })
+      return
+    }
+
     const subscribers = sessions[idx].subscribers ?? []
     if (!subscribers.includes(openid)) subscribers.push(openid)
     sessions[idx] = { ...sessions[idx], subscribers, updatedAt: new Date().toISOString() }
