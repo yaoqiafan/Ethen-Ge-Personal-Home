@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { createHmac, createHash } from 'crypto'
-import { Agent } from 'undici'
+import { Agent } from 'node:undici'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
