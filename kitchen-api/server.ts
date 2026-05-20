@@ -1,13 +1,8 @@
 import 'dotenv/config'
-import { createRequire } from 'module'
+import { createHmac, createHash } from 'crypto'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
-
-const _require = createRequire(import.meta.url)
-// cos-nodejs-sdk-v5 是 CJS 包，ESM 下直接 import 会导致其 Node.js HTTP 补丁失效
-// 用 createRequire 强制以 CJS 方式加载，确保 XMLHttpRequest polyfill 正确注入
-const COS = _require('cos-nodejs-sdk-v5') as typeof import('cos-nodejs-sdk-v5')
 
 // ── 环境变量 ──────────────────────────────────────────────────────────────────
 const PORT        = Number(process.env.PORT)                  || 3004
@@ -47,36 +42,47 @@ interface OrderSession {
   createdAt: string; updatedAt: string
 }
 
-// ── COS 实例 ──────────────────────────────────────────────────────────────────
-const cos = new COS({ SecretId: SECRET_ID, SecretKey: SECRET_KEY })
-
+// ── COS 请求签名（腾讯云 COS v5 签名算法，无需 SDK）────────────────────────────
 const DISHES_KEY   = 'kitchen/dishes.json'
 const SESSIONS_KEY = 'kitchen/sessions.json'
 
-function cosGet<T>(key: string, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    cos.getObject({ Bucket: BUCKET, Region: REGION, Key: key }, (err, data) => {
-      if (err) { resolve(fallback); return }
-      try {
-        const text = typeof data.Body === 'string'
-          ? data.Body
-          : Buffer.from(data.Body as ArrayBuffer).toString('utf-8')
-        resolve(JSON.parse(text) as T)
-      } catch {
-        resolve(fallback)
-      }
-    })
-  })
+function _cosAuth(method: string, urlPath: string): string {
+  const now   = Math.floor(Date.now() / 1000)
+  const keyTime  = `${now};${now + 3600}`
+  const signKey  = createHmac('sha1', SECRET_KEY).update(keyTime).digest('hex')
+  const httpStr  = `${method.toLowerCase()}\n${urlPath}\n\n\n`
+  const strToSign = `sha1\n${keyTime}\n${createHash('sha1').update(httpStr).digest('hex')}\n`
+  const sig      = createHmac('sha1', signKey).update(strToSign).digest('hex')
+  return `q-sign-algorithm=sha1&q-ak=${SECRET_ID}&q-sign-time=${keyTime}&q-key-time=${keyTime}&q-header-list=&q-url-param-list=&q-signature=${sig}`
 }
 
-function cosPut(key: string, body: unknown): Promise<void> {
-  return new Promise((resolve, reject) => {
-    cos.putObject(
-      { Bucket: BUCKET, Region: REGION, Key: key,
-        Body: JSON.stringify(body, null, 2), ContentType: 'application/json' },
-      (err) => err ? reject(new Error(err.message)) : resolve()
-    )
+const _cosBase = () => `https://${BUCKET}.cos.${REGION}.myqcloud.com`
+
+async function cosGet<T>(key: string, fallback: T): Promise<T> {
+  const path = `/${key}`
+  try {
+    const res = await fetch(`${_cosBase()}${path}`, {
+      headers: { Authorization: _cosAuth('GET', path) },
+    })
+    if (!res.ok) return fallback
+    return await res.json() as T
+  } catch {
+    return fallback
+  }
+}
+
+async function cosPut(key: string, body: unknown): Promise<void> {
+  const path    = `/${key}`
+  const content = JSON.stringify(body, null, 2)
+  const res = await fetch(`${_cosBase()}${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: _cosAuth('PUT', path),
+      'Content-Type': 'application/json',
+    },
+    body: content,
   })
+  if (!res.ok) throw new Error(`COS PUT failed: ${res.status} ${await res.text()}`)
 }
 
 // ── 微信 access_token（内存缓存，提前 5 分钟刷新）──────────────────────────────
