@@ -113,6 +113,20 @@ app.use(express.json())
 // 健康检查
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
+// GET /sessions/active — 返回最新的活跃工单（无需 sid）
+app.get('/sessions/active', async (_req, res) => {
+  try {
+    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
+    const active = sessions.filter(s => s.status === 'active')
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    if (!active) { res.json({ found: false }); return }
+    res.json({ found: true, sid: active.id, name: active.name })
+  } catch (e) {
+    console.error('[GET sessions/active]', e)
+    res.status(500).json({ error: '服务器错误' })
+  }
+})
+
 // GET /session/:sid — 验证工单并返回菜单
 app.get('/session/:sid', async (req, res) => {
   try {
