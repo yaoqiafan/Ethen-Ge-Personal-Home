@@ -1,13 +1,44 @@
 import 'dotenv/config'
 import { createHmac, createHash } from 'crypto'
+import { request as httpsRequest } from 'https'
 import { Agent, setGlobalDispatcher } from 'undici'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
 
-// 微信 API 仅支持 IPv4，强制全局 fetch 使用 IPv4 套接字
-// --dns-result-order=ipv4first 只影响 DNS 解析顺序，不影响 TCP 连接族
+// COS 调用走 undici fetch，强制 IPv4
 setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
+
+// 微信 API 用 Node.js 原生 https 模块——undici 在本机与微信服务器 TLS 握手超时
+function wxRequest<T>(url: string, postBody?: unknown): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    const payload = postBody ? JSON.stringify(postBody) : undefined
+    const req = httpsRequest(
+      {
+        hostname: u.hostname,
+        port: 443,
+        path: u.pathname + u.search,
+        method: payload ? 'POST' : 'GET',
+        headers: payload
+          ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+          : {},
+      },
+      (res) => {
+        let raw = ''
+        res.on('data', (chunk) => { raw += chunk })
+        res.on('end', () => {
+          try { resolve(JSON.parse(raw) as T) }
+          catch (e) { reject(e) }
+        })
+      },
+    )
+    req.on('error', reject)
+    req.setTimeout(15000, () => { req.destroy(new Error('wx request timeout')) })
+    if (payload) req.write(payload)
+    req.end()
+  })
+}
 
 // ── 环境变量 ──────────────────────────────────────────────────────────────────
 const PORT        = Number(process.env.PORT)                  || 3004
@@ -97,8 +128,7 @@ let _wxTokenExp = 0
 async function getWxToken(): Promise<string> {
   if (_wxToken && Date.now() < _wxTokenExp) return _wxToken
   if (!WX_APP_ID || !WX_SECRET) throw new Error('未配置 WX_APP_ID / WX_APP_SECRET')
-  const res = await fetch(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WX_APP_ID}&secret=${WX_SECRET}`)
-  const d = await res.json() as any
+  const d = await wxRequest<any>(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${WX_APP_ID}&secret=${WX_SECRET}`)
   if (!d.access_token) throw new Error(`获取 access_token 失败: ${d.errmsg}`)
   _wxToken = d.access_token
   _wxTokenExp = Date.now() + (d.expires_in - 300) * 1000
@@ -107,8 +137,7 @@ async function getWxToken(): Promise<string> {
 
 // ── 微信 code 换 openid ────────────────────────────────────────────────────────
 async function code2openid(code: string): Promise<string> {
-  const res = await fetch(`https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APP_ID}&secret=${WX_SECRET}&js_code=${code}&grant_type=authorization_code`)
-  const d = await res.json() as any
+  const d = await wxRequest<any>(`https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APP_ID}&secret=${WX_SECRET}&js_code=${code}&grant_type=authorization_code`)
   if (!d.openid) throw new Error(`code2session 失败: ${d.errmsg}`)
   return d.openid as string
 }
@@ -148,12 +177,7 @@ async function sendSubscribeMsg(openid: string, session: OrderSession): Promise<
     },
   }
 
-  const res = await fetch(`https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${token}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const result = await res.json() as any
+  const result = await wxRequest<any>(`https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${token}`, body)
   if (result.errcode && result.errcode !== 0) {
     throw new Error(`订阅消息发送失败: ${result.errmsg} (${result.errcode})`)
   }
@@ -292,9 +316,7 @@ app.post('/session/:sid/subscribe', async (req, res) => {
     try {
       openid = await code2openid(code)
     } catch (e: any) {
-      console.warn('[Subscribe] code2openid 失败 message:', e.message)
-      console.warn('[Subscribe] code2openid 失败 cause:', e.cause)
-      console.warn('[Subscribe] code2openid 失败 stack:', e.stack)
+      console.warn('[Subscribe] code2openid 失败:', e.message)
       res.json({ ok: true, note: 'openid 获取失败，已跳过' })
       return
     }
