@@ -304,8 +304,9 @@ app.put('/session/:sid/cart', async (req, res) => {
 
 // POST /session/:sid/subscribe — 用户订阅消息：code 换 openid 并存储
 app.post('/session/:sid/subscribe', async (req, res) => {
+  console.log(`[Subscribe] 收到请求 sid=${req.params.sid}`)
   if (!WX_APP_ID || !WX_SECRET) {
-    // 未配置微信凭证，静默跳过（不报错，避免前端看到失败）
+    console.warn('[Subscribe] 未配置 WX_APP_ID / WX_APP_SECRET，跳过')
     res.json({ ok: true, note: '未配置 WX_APP_SECRET，已跳过' })
     return
   }
@@ -320,6 +321,7 @@ app.post('/session/:sid/subscribe', async (req, res) => {
     let openid: string
     try {
       openid = await code2openid(code)
+      console.log(`[Subscribe] code2openid 成功 openid=${openid.slice(0, 8)}...`)
     } catch (e: any) {
       console.warn('[Subscribe] code2openid 失败:', e.message)
       res.json({ ok: true, note: 'openid 获取失败，已跳过' })
@@ -330,6 +332,7 @@ app.post('/session/:sid/subscribe', async (req, res) => {
     if (!subscribers.includes(openid)) subscribers.push(openid)
     sessions[idx] = { ...sessions[idx], subscribers, updatedAt: new Date().toISOString() }
     await cosPut(SESSIONS_KEY, sessions)
+    console.log(`[Subscribe] openid 已存储 sid=${req.params.sid} 共${subscribers.length}人`)
     res.json({ ok: true })
   } catch (e) {
     console.error('[POST subscribe]', e)
