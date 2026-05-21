@@ -32,7 +32,7 @@
 
     <template v-else>
       <!-- 分类 Tabs -->
-      <CategoryTabs v-model="selectedCategory" :dishes="allDishes" />
+      <CategoryTabs v-model="selectedCategory" :dishes="cartDishes" />
 
       <!-- 加载骨架 -->
       <div v-if="loading" class="dish-loading">
@@ -75,9 +75,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import type { Dish, DishCategory } from '@/types/kitchen'
-import * as kitchenSvc from '@/services/kitchenService'
 import {
-  cartCount, cartItems, sessionName,
+  cartCount, cartItems, cartDishes, sessionName,
   addToCart as _addToCart,
   removeFromCart, setQuantity,
   openCart, initSession, stopSession,
@@ -89,73 +88,54 @@ import KitchenToast  from '@/components/kitchen/KitchenToast.vue'
 import SiteFooter    from '@/components/layout/SiteFooter.vue'
 
 // ── 状态 ──────────────────────────────────────────────────────────────────────
-const allDishes        = ref<Dish[]>([])
-const loading          = ref(true)
+const loading          = ref(false)
 const selectedCategory = ref<DishCategory | null>(null)
 const toastRef         = ref<InstanceType<typeof KitchenToast> | null>(null)
-const currentSid       = ref<string | null>(null)
+const hasSession       = ref(false)
 
 const route = useRoute()
 
 // ── 计算 ──────────────────────────────────────────────────────────────────────
-const hasSession = computed(() => !!currentSid.value)
-
-const tagline = computed(() =>
-  sessionName.value ? sessionName.value : '今日菜单'
-)
+const tagline = computed(() => sessionName.value || '今日菜单')
 
 const filteredDishes = computed(() =>
   selectedCategory.value
-    ? allDishes.value.filter(d => d.category === selectedCategory.value)
-    : allDishes.value
+    ? cartDishes.value.filter((d: Dish) => d.category === selectedCategory.value)
+    : cartDishes.value
 )
-const availableCount = computed(() => allDishes.value.filter(d => d.available).length)
-const soldOutCount   = computed(() => allDishes.value.filter(d => !d.available).length)
+const availableCount = computed(() => cartDishes.value.filter((d: Dish) => d.available).length)
+const soldOutCount   = computed(() => cartDishes.value.filter((d: Dish) => !d.available).length)
 
 // ── 购物车辅助 ─────────────────────────────────────────────────────────────────
 function getCartQty(dishId: string): number {
   return cartItems.value.find(i => i.dish.id === dishId)?.quantity ?? 0
 }
-
-function addToCart(dish: Dish) {
-  _addToCart(dish)
-}
-
+function addToCart(dish: Dish) { _addToCart(dish) }
 function decrementCart(dish: Dish) {
   const qty = getCartQty(dish.id)
   if (qty <= 1) removeFromCart(dish.id)
   else setQuantity(dish.id, qty - 1)
 }
 
-// ── 数据加载 ───────────────────────────────────────────────────────────────────
-async function loadDishes() {
-  loading.value = true
-  try {
-    allDishes.value = await kitchenSvc.getAll()
-  } finally {
-    loading.value = false
-  }
-}
-
 // ── 生命周期 ───────────────────────────────────────────────────────────────────
 onMounted(async () => {
   const sid = route.query.sid as string | undefined
-  if (sid) {
-    currentSid.value = sid
-    await Promise.all([loadDishes(), initSession(sid)])
+  if (!sid) return
+  loading.value = true
+  try {
+    const ok = await initSession(sid)
+    hasSession.value = ok
+  } finally {
+    loading.value = false
   }
 })
 
-onBeforeUnmount(() => {
-  stopSession()
-})
+onBeforeUnmount(() => { stopSession() })
 
 // ── 提交回调 ───────────────────────────────────────────────────────────────────
 function handleSubmitted() {
-  // 工单由大厨在后台手动结束，前端只发推送通知、保持购物车和工单 active
   toastRef.value?.show('点单已发送给大厨！🍳', 'success')
 }
-
 function handleError() {
   toastRef.value?.show('发送失败，请稍后再试', 'error')
 }
