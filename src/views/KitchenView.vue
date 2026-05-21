@@ -474,7 +474,8 @@ async function doCreateSession() {
 async function doCloseSession(id: string) {
   if (!confirm('确认结束该工单？结束后家人将无法继续点菜。')) return
   try {
-    await kitchenSvc.closeSession(id)
+    const res = await fetch(`https://stoplesslab.com/api/kitchen/session/${id}/close`, { method: 'PUT' })
+    if (!res.ok) throw new Error(`关闭失败: ${res.status}`)
     await loadSessions()
     toast('工单已结束')
     if (expandedId.value === id) expandedId.value = null
