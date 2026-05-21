@@ -76,11 +76,15 @@ interface CartItem {
 interface OrderPayload {
   items: CartItem[]; note: string; submittedAt: string
 }
+interface ParticipantInfo {
+  deviceId: string; avatarUrl: string; nickName: string; updatedAt: string
+}
 interface OrderSession {
   id: string; name: string; status: SessionStatus
   items: CartItem[]
-  participants?: string[]   // 各设备 ID（用于统计人数）
-  subscribers?: string[]   // 同意订阅消息的用户 openid
+  participants?: string[]        // 各设备 ID（用于统计人数）
+  participantInfos?: ParticipantInfo[]  // 带头像和昵称的参与者信息
+  subscribers?: string[]         // 同意订阅消息的用户 openid
   createdAt: string; updatedAt: string
 }
 
@@ -137,6 +141,19 @@ async function cosPut(key: string, body: unknown): Promise<void> {
     body: content,
   })
   if (!res.ok) throw new Error(`COS PUT failed: ${res.status} ${await res.text()}`)
+}
+
+async function cosPutBinary(key: string, buffer: Buffer, contentType: string): Promise<void> {
+  const path = `/${key}`
+  const res = await fetch(`${_cosBase()}${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: _cosAuth('PUT', path),
+      'Content-Type': contentType,
+    },
+    body: buffer,
+  })
+  if (!res.ok) throw new Error(`COS PUT binary failed: ${res.status} ${await res.text()}`)
 }
 
 // ── 微信 access_token（内存缓存，提前 5 分钟刷新）──────────────────────────────
@@ -242,7 +259,7 @@ async function sendPush(payload: OrderPayload): Promise<void> {
 // ── Express 应用 ──────────────────────────────────────────────────────────────
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '2mb' }))
 
 // 健康检查
 app.get('/health', (_req, res) => res.json({ ok: true }))
@@ -302,9 +319,66 @@ app.get('/session/:sid', async (req, res) => {
       session,
       dishes,
       participantCount: session.participants?.length ?? 1,
+      participantInfos: session.participantInfos ?? [],
     })
   } catch (e) {
     console.error('[GET session]', e)
+    res.status(500).json({ error: '服务器错误' })
+  }
+})
+
+// POST /avatar — 上传头像（base64），存入 COS，返回永久链接
+app.post('/avatar', async (req, res) => {
+  try {
+    const { deviceId, base64 } = req.body
+    if (!deviceId || !base64) { res.status(400).json({ error: '缺少 deviceId 或 base64' }); return }
+    const buffer = Buffer.from(base64 as string, 'base64')
+    if (buffer.length > 1_500_000) { res.status(413).json({ error: '头像文件过大' }); return }
+    const key = `kitchen/avatars/${deviceId}.jpg`
+    await cosPutBinary(key, buffer, 'image/jpeg')
+    const url = `${_cosBase()}/${key}`
+    console.log(`[avatar] 上传成功 deviceId=${deviceId} size=${buffer.length}`)
+    res.json({ ok: true, url })
+  } catch (e) {
+    console.error('[POST avatar]', e)
+    res.status(500).json({ error: '头像上传失败' })
+  }
+})
+
+// PUT /session/:sid/participant — 注册或更新参与者头像和昵称
+app.put('/session/:sid/participant', async (req, res) => {
+  try {
+    const { deviceId, avatarUrl, nickName } = req.body
+    if (!deviceId) { res.status(400).json({ error: '缺少 deviceId' }); return }
+
+    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
+    const idx = sessions.findIndex(s => s.id === req.params.sid)
+    if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
+    if (sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+
+    const infos: ParticipantInfo[] = sessions[idx].participantInfos ?? []
+    const existingIdx = infos.findIndex(p => p.deviceId === deviceId)
+    const info: ParticipantInfo = {
+      deviceId, avatarUrl: avatarUrl || '', nickName: nickName || '',
+      updatedAt: new Date().toISOString(),
+    }
+    if (existingIdx >= 0) infos[existingIdx] = info
+    else infos.push(info)
+
+    // 同步 participants 列表（保持兼容）
+    const participants = sessions[idx].participants ?? []
+    if (!participants.includes(deviceId)) participants.push(deviceId)
+
+    sessions[idx] = {
+      ...sessions[idx],
+      participantInfos: infos,
+      participants,
+      updatedAt: new Date().toISOString(),
+    }
+    await cosPut(SESSIONS_KEY, sessions)
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('[PUT participant]', e)
     res.status(500).json({ error: '服务器错误' })
   }
 })
