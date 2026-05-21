@@ -193,18 +193,13 @@ export async function getSession(id: string): Promise<OrderSession | undefined> 
 }
 
 export async function createSession(name: string): Promise<OrderSession> {
-  const sessions = await loadSessions()
-  const now = new Date().toISOString()
-  const newSession: OrderSession = {
-    id: `s${Date.now()}`,
-    name: name.trim(),
-    status: 'active',
-    items: [],
-    createdAt: now,
-    updatedAt: now,
-  }
-  await saveSessions([...sessions, newSession])
-  return newSession
+  const res = await fetch('https://stoplesslab.com/api/kitchen/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name.trim() }),
+  })
+  if (!res.ok) throw new Error(`创建工单失败: ${res.status}`)
+  return res.json() as Promise<OrderSession>
 }
 
 export async function updateSessionCart(id: string, items: CartItem[]): Promise<void> {

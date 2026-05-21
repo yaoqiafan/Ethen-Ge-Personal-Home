@@ -104,7 +104,10 @@ async function cosGet<T>(key: string, fallback: T): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(`${_cosBase()}${path}`, {
-        headers: { Authorization: _cosAuth('GET', path) },
+        headers: {
+          Authorization: _cosAuth('GET', path),
+          'Cache-Control': 'no-store',
+        },
       })
       if (!res.ok) return fallback
       return await res.json() as T
@@ -241,6 +244,29 @@ app.use(express.json())
 
 // 健康检查
 app.get('/health', (_req, res) => res.json({ ok: true }))
+
+// POST /sessions — 创建新工单
+app.post('/sessions', async (req, res) => {
+  try {
+    const name: string = req.body?.name?.trim()
+    if (!name) { res.status(400).json({ error: '缺少工单名称' }); return }
+    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
+    const now = new Date().toISOString()
+    const newSession: OrderSession = {
+      id: `s${Date.now()}`,
+      name,
+      status: 'active',
+      items: [],
+      createdAt: now,
+      updatedAt: now,
+    }
+    await cosPut(SESSIONS_KEY, [...sessions, newSession])
+    res.json(newSession)
+  } catch (e) {
+    console.error('[POST sessions]', e)
+    res.status(500).json({ error: '服务器错误' })
+  }
+})
 
 // GET /sessions/active — 返回最新的活跃工单（无需 sid）
 app.get('/sessions/active', async (_req, res) => {
