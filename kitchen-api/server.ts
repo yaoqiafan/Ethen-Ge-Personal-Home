@@ -7,38 +7,28 @@ import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { mkdirSync, writeFileSync, existsSync } from 'fs'
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'fs'
 
 // COS 调用走 undici fetch，强制 IPv4
 setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
 
 // 微信 API 用 Node.js 原生 https 模块（undici/fetch 的 OpenSSL 与微信服务器 TLS 握手不兼容）
-// ALPNProtocols 强制只协商 http/1.1，与 curl/Schannel 行为一致，避免 OpenSSL 等待 ALPN 回复挂死
 function wxRequest<T>(url: string, postBody?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const u = new URL(url)
     const payload = postBody ? JSON.stringify(postBody) : undefined
     const req = httpsRequest(
       {
-        hostname: u.hostname,
-        port: 443,
-        path: u.pathname + u.search,
+        hostname: u.hostname, port: 443, path: u.pathname + u.search,
         method: payload ? 'POST' : 'GET',
-        headers: payload
-          ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
-          : {},
-        // 明确只使用 TLS 1.2 + HTTP/1.1，匹配微信服务器实际支持的配置
-        minVersion: 'TLSv1.2' as any,
-        maxVersion: 'TLSv1.3' as any,
+        headers: payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {},
+        minVersion: 'TLSv1.2' as any, maxVersion: 'TLSv1.3' as any,
         ALPNProtocols: ['http/1.1'],
       },
       (res) => {
         let raw = ''
         res.on('data', (chunk) => { raw += chunk })
-        res.on('end', () => {
-          try { resolve(JSON.parse(raw) as T) }
-          catch (e) { reject(e) }
-        })
+        res.on('end', () => { try { resolve(JSON.parse(raw) as T) } catch (e) { reject(e) } })
       },
     )
     req.on('error', reject)
@@ -57,75 +47,48 @@ const REGION      = process.env.COS_REGION                    || ''
 const PUSH_KEY    = process.env.PUSH_KEY                      || ''
 const WX_APP_ID   = process.env.WX_APP_ID                     || ''
 const WX_SECRET   = process.env.WX_APP_SECRET                 || ''
-// 注意：模板字段名需与公众平台实际模板一致，请按需修改 sendSubscribeMsg 中的 data 字段
 const WX_TMPL_ID  = process.env.WX_SUBSCRIBE_TEMPLATE_ID      || ''
 
-// ── 类型定义（与 src/types/kitchen.ts 保持同步）────────────────────────────────
+// ── 类型定义 ──────────────────────────────────────────────────────────────────
 type DishCategory = '荤菜' | '素菜' | '汤羹' | '主食' | '小吃'
 type SessionStatus = 'active' | 'closed'
-
-interface Dish {
-  id: string; name: string; category: DishCategory
-  description: string; imageUrl: string
-  available: boolean; price: number
-  createdAt: string; isCustom?: boolean
-}
-interface CartItem {
-  dish: Dish; quantity: number
-  submittedQty?: number
-  preferences?: string[]
-  deviceId?: string   // 记录来源设备，防止多端互相覆盖购物车
-}
-interface OrderPayload {
-  items: CartItem[]; note: string; submittedAt: string
-}
-interface ParticipantInfo {
-  deviceId: string; avatarUrl: string; nickName: string; updatedAt: string
-}
+interface Dish { id: string; name: string; category: DishCategory; description: string; imageUrl: string; available: boolean; price: number; createdAt: string; isCustom?: boolean }
+interface CartItem { dish: Dish; quantity: number; submittedQty?: number; preferences?: string[]; deviceId?: string }
+interface OrderPayload { items: CartItem[]; note: string; submittedAt: string }
+interface ParticipantInfo { deviceId: string; avatarUrl: string; nickName: string; updatedAt: string }
 interface OrderSession {
-  id: string; name: string; status: SessionStatus
-  items: CartItem[]
-  participants?: string[]        // 各设备 ID（用于统计人数）
-  participantInfos?: ParticipantInfo[]  // 带头像和昵称的参与者信息
-  subscribers?: string[]         // 同意订阅消息的用户 openid
+  id: string; name: string; status: SessionStatus; items: CartItem[]
+  participants?: string[]; participantInfos?: ParticipantInfo[]; subscribers?: string[]
   createdAt: string; updatedAt: string
 }
 
-// ── COS 请求签名（腾讯云 COS v5 签名算法，无需 SDK）────────────────────────────
+// ── COS 工具 ──────────────────────────────────────────────────────────────────
 const DISHES_KEY   = 'kitchen/dishes.json'
 const SESSIONS_KEY = 'kitchen/sessions.json'
 
 function _cosAuth(method: string, urlPath: string): string {
-  const now   = Math.floor(Date.now() / 1000)
-  const keyTime  = `${now};${now + 3600}`
-  const signKey  = createHmac('sha1', SECRET_KEY).update(keyTime).digest('hex')
-  const httpStr  = `${method.toLowerCase()}\n${urlPath}\n\n\n`
+  const now = Math.floor(Date.now() / 1000)
+  const keyTime = `${now};${now + 3600}`
+  const signKey = createHmac('sha1', SECRET_KEY).update(keyTime).digest('hex')
+  const httpStr = `${method.toLowerCase()}\n${urlPath}\n\n\n`
   const strToSign = `sha1\n${keyTime}\n${createHash('sha1').update(httpStr).digest('hex')}\n`
-  const sig      = createHmac('sha1', signKey).update(strToSign).digest('hex')
+  const sig = createHmac('sha1', signKey).update(strToSign).digest('hex')
   return `q-sign-algorithm=sha1&q-ak=${SECRET_ID}&q-sign-time=${keyTime}&q-key-time=${keyTime}&q-header-list=&q-url-param-list=&q-signature=${sig}`
 }
-
 const _cosBase = () => `https://${BUCKET}.cos.${REGION}.myqcloud.com`
 
 async function cosGet<T>(key: string, fallback: T): Promise<T> {
   const path = `/${key}`
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      // ?_ts= 绕过 COS CDN 边缘缓存（COS 签名不含 q-url-param-list，额外参数不影响鉴权）
       const res = await fetch(`${_cosBase()}${path}?_ts=${Date.now()}`, {
-        headers: {
-          Authorization: _cosAuth('GET', path),
-          'Cache-Control': 'no-store',
-        },
+        headers: { Authorization: _cosAuth('GET', path), 'Cache-Control': 'no-store' },
       })
       if (!res.ok) return fallback
       return await res.json() as T
     } catch (e) {
-      if (attempt === 2) {
-        console.warn(`[cosGet] ${key} 第 ${attempt + 1} 次失败，放弃:`, (e as Error).message)
-        return fallback
-      }
-      console.warn(`[cosGet] ${key} 第 ${attempt + 1} 次失败，300ms 后重试:`, (e as Error).message)
+      if (attempt === 2) { console.warn(`[cosGet] ${key} 放弃:`, (e as Error).message); return fallback }
+      console.warn(`[cosGet] ${key} 第${attempt + 1}次失败，300ms后重试:`, (e as Error).message)
       await new Promise(r => setTimeout(r, 300))
     }
   }
@@ -133,23 +96,51 @@ async function cosGet<T>(key: string, fallback: T): Promise<T> {
 }
 
 async function cosPut(key: string, body: unknown): Promise<void> {
-  const path    = `/${key}`
+  const path = `/${key}`
   const content = JSON.stringify(body, null, 2)
   const res = await fetch(`${_cosBase()}${path}`, {
     method: 'PUT',
-    headers: {
-      Authorization: _cosAuth('PUT', path),
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: _cosAuth('PUT', path), 'Content-Type': 'application/json' },
     body: content,
   })
   if (!res.ok) throw new Error(`COS PUT failed: ${res.status} ${await res.text()}`)
 }
 
-// ── 微信 access_token（内存缓存，提前 5 分钟刷新）──────────────────────────────
-let _wxToken = ''
-let _wxTokenExp = 0
+// ── 内存状态 ──────────────────────────────────────────────────────────────────
+// 所有数据以内存为主，开机时从 COS 加载一次，写操作即时改内存 + 异步刷 COS
+let _sessions: OrderSession[] = []
+let _dishes: Dish[] = []
+let _ready = false
 
+async function initFromCOS(): Promise<void> {
+  const [s, d] = await Promise.all([
+    cosGet<OrderSession[]>(SESSIONS_KEY, []),
+    cosGet<Dish[]>(DISHES_KEY, []),
+  ])
+  _sessions = s
+  _dishes = d
+  _ready = true
+  console.log(`[init] 加载完成: ${_sessions.length} 工单, ${_dishes.length} 菜品`)
+}
+
+function _flushCOS(): void {
+  // 异步刷 COS，不阻塞请求
+  Promise.all([
+    cosPut(SESSIONS_KEY, _sessions).catch(e => console.warn('[COS] sessions 刷入失败:', e.message)),
+    cosPut(DISHES_KEY, _dishes).catch(e => console.warn('[COS] dishes 刷入失败:', e.message)),
+  ])
+}
+
+function findSession(sid: string): OrderSession | undefined {
+  return _sessions.find(s => s.id === sid)
+}
+
+function sessionIndex(sid: string): number {
+  return _sessions.findIndex(s => s.id === sid)
+}
+
+// ── 微信 access_token ────────────────────────────────────────────────────────
+let _wxToken = '', _wxTokenExp = 0
 async function getWxToken(): Promise<string> {
   if (_wxToken && Date.now() < _wxTokenExp) return _wxToken
   if (!WX_APP_ID || !WX_SECRET) throw new Error('未配置 WX_APP_ID / WX_APP_SECRET')
@@ -159,84 +150,47 @@ async function getWxToken(): Promise<string> {
   _wxTokenExp = Date.now() + (d.expires_in - 300) * 1000
   return _wxToken
 }
-
-// ── 微信 code 换 openid ────────────────────────────────────────────────────────
 async function code2openid(code: string): Promise<string> {
   const d = await wxRequest<any>(`https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APP_ID}&secret=${WX_SECRET}&js_code=${code}&grant_type=authorization_code`)
   if (!d.openid) throw new Error(`code2session 失败: ${d.errmsg}`)
   return d.openid as string
 }
 
-// ── 发送订阅消息 ───────────────────────────────────────────────────────────────
+// ── 订阅消息 ──────────────────────────────────────────────────────────────────
 async function sendSubscribeMsg(openid: string, session: OrderSession): Promise<void> {
-  if (!WX_TMPL_ID) { console.log('[Subscribe] 未配置 WX_SUBSCRIBE_TEMPLATE_ID，跳过'); return }
+  if (!WX_TMPL_ID) return
   const token = await getWxToken()
   const totalDishes = session.items.reduce((s, i) => s + i.quantity, 0)
-  const endTime = new Date().toLocaleString('zh-CN', {
-    year: 'numeric', month: 'long', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-
-  // 模板「订单状态提醒」(524) 字段：
-  //   thing1  → 订单内容
-  //   phrase2 → 订单状态（固定短语，如"已完成"）
-  //   date3   → 下单时间
-  //   thing5  → 备注
-  //   time16  → 完成时间
-  const startTime = new Date(session.createdAt).toLocaleString('zh-CN', {
-    year: 'numeric', month: 'long', day: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  const startTime = new Date(session.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const endTime = new Date().toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   const body = {
-    touser: openid,
-    template_id: WX_TMPL_ID,
-    page: 'pages/order/order',
-    miniprogram_state: 'formal',
-    lang: 'zh_CN',
+    touser: openid, template_id: WX_TMPL_ID, page: 'pages/order/order', miniprogram_state: 'formal', lang: 'zh_CN',
     data: {
-      thing1:  { value: `${session.name.slice(0, 14)}，共${totalDishes}道菜` },
-      phrase2: { value: '已完成' },
-      date3:   { value: startTime },
-      thing5:  { value: '感谢用餐，欢迎下次光临！' },
-      time16:  { value: endTime },
+      thing1: { value: `${session.name.slice(0, 14)}，共${totalDishes}道菜` },
+      phrase2: { value: '已完成' }, date3: { value: startTime },
+      thing5: { value: '感谢用餐，欢迎下次光临！' }, time16: { value: endTime },
     },
   }
-
   const result = await wxRequest<any>(`https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${token}`, body)
-  if (result.errcode && result.errcode !== 0) {
-    throw new Error(`订阅消息发送失败: ${result.errmsg} (${result.errcode})`)
-  }
+  if (result.errcode && result.errcode !== 0) throw new Error(`订阅消息发送失败: ${result.errmsg} (${result.errcode})`)
 }
 
-// ── 推送通知（Server酱 / Bark）────────────────────────────────────────────────
+// ── 推送通知 ──────────────────────────────────────────────────────────────────
 function buildPushText(payload: OrderPayload): { title: string; body: string } {
   const lines = payload.items.map(item => {
     const pref = item.preferences?.length ? ` [${item.preferences.join('、')}]` : ''
     return `${item.dish.name} × ${item.quantity}${pref}`
   })
   const title = `🍽️ 新点单 — ${payload.items.length} 道菜`
-  const body = [
-    ...lines,
-    '',
-    payload.note ? `备注：${payload.note}` : '',
-    `时间：${new Date(payload.submittedAt).toLocaleString('zh-CN')}`,
-  ].filter(Boolean).join('\n')
+  const body = [...lines, '', payload.note ? `备注：${payload.note}` : '', `时间：${new Date(payload.submittedAt).toLocaleString('zh-CN')}`].filter(Boolean).join('\n')
   return { title, body }
 }
-
 async function sendPush(payload: OrderPayload): Promise<void> {
-  if (!PUSH_KEY) {
-    console.log('[Push] 未配置 PUSH_KEY，跳过推送')
-    return
-  }
+  if (!PUSH_KEY) return
   const { title, body } = buildPushText(payload)
-  const isSCT = PUSH_KEY.startsWith('SCT') || PUSH_KEY.startsWith('sct')
-    || PUSH_KEY.includes('sctapi.ftqq.com') || PUSH_KEY.includes('sc.ftqq.com')
-
+  const isSCT = PUSH_KEY.startsWith('SCT') || PUSH_KEY.startsWith('sct') || PUSH_KEY.includes('sctapi.ftqq.com') || PUSH_KEY.includes('sc.ftqq.com')
   if (isSCT) {
-    const key = PUSH_KEY.startsWith('http')
-      ? PUSH_KEY.split('/').pop()?.replace('.send', '') || PUSH_KEY
-      : PUSH_KEY
+    const key = PUSH_KEY.startsWith('http') ? PUSH_KEY.split('/').pop()?.replace('.send', '') || PUSH_KEY : PUSH_KEY
     await scSend(key, title, body, { tags: '厨房订单|新点单' })
   } else {
     const base = PUSH_KEY.startsWith('http') ? PUSH_KEY : `https://api.day.app/${PUSH_KEY}`
@@ -251,273 +205,195 @@ const app = express()
 app.use(cors())
 app.use(express.json({ limit: '2mb' }))
 
-// 头像本地存储（不用 COS，避免连接不稳定）
+// 头像本地存储
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const AVATARS_DIR = join(__dirname, 'avatars')
 if (!existsSync(AVATARS_DIR)) mkdirSync(AVATARS_DIR, { recursive: true })
-// 通过 /api/kitchen/avatars/* → /avatars/* 对外服务
 app.use('/avatars', express.static(AVATARS_DIR))
 
-// 健康检查
-app.get('/health', (_req, res) => res.json({ ok: true }))
+// 健康检查（含就绪检查）
+app.get('/health', (_req, res) => res.json({ ok: true, ready: _ready }))
 
-// POST /sessions — 创建新工单
+// ── 中间件：等待数据就绪 ──────────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  if (!_ready) { res.status(503).json({ error: '服务启动中，请稍后' }); return }
+  next()
+})
+
+// ── 工单 API（全部操作内存，异步刷 COS）─────────────────────────────────────
+
+// POST /sessions — 创建
 app.post('/sessions', async (req, res) => {
   try {
     const name: string = req.body?.name?.trim()
     if (!name) { res.status(400).json({ error: '缺少工单名称' }); return }
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
     const now = new Date().toISOString()
-    const newSession: OrderSession = {
-      id: `s${Date.now()}`,
-      name,
-      status: 'active',
-      items: [],
-      createdAt: now,
-      updatedAt: now,
-    }
-    await cosPut(SESSIONS_KEY, [...sessions, newSession])
+    const newSession: OrderSession = { id: `s${Date.now()}`, name, status: 'active', items: [], createdAt: now, updatedAt: now }
+    _sessions.push(newSession)
+    _flushCOS()
+    console.log(`[sessions] 创建: ${newSession.id} name=${name}`)
     res.json(newSession)
-  } catch (e) {
-    console.error('[POST sessions]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[POST sessions]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// GET /sessions/active — 返回最新的活跃工单（无需 sid）
-app.get('/sessions/active', async (_req, res) => {
+// GET /sessions/active — 最新的活跃工单
+app.get('/sessions/active', (_req, res) => {
   try {
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
-    console.log(`[sessions/active] COS 读取 ${sessions.length} 个工单，active: ${sessions.filter(s=>s.status==='active').length} 个`)
-    const active = sessions.filter(s => s.status === 'active')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    const active = _sessions.filter(s => s.status === 'active').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
     if (!active) { res.json({ found: false }); return }
     res.json({ found: true, sid: active.id, name: active.name })
-  } catch (e) {
-    console.error('[GET sessions/active]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[GET sessions/active]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// GET /session/:sid — 验证工单并返回菜单 + 人数
-app.get('/session/:sid', async (req, res) => {
+// GET /session/:sid — 工单详情 + 菜单
+app.get('/session/:sid', (req, res) => {
   try {
-    const [sessions, dishes] = await Promise.all([
-      cosGet<OrderSession[]>(SESSIONS_KEY, []),
-      cosGet<Dish[]>(DISHES_KEY, []),
-    ])
-    const session = sessions.find(s => s.id === req.params.sid)
-    if (!session || session.status === 'closed') {
-      res.json({ valid: false })
-      return
-    }
+    const session = findSession(req.params.sid)
+    if (!session || session.status === 'closed') { res.json({ valid: false }); return }
     res.json({
-      valid: true,
-      session,
-      dishes,
+      valid: true, session,
+      dishes: _dishes,
       participantCount: session.participants?.length ?? 1,
       participantInfos: session.participantInfos ?? [],
     })
-  } catch (e) {
-    console.error('[GET session]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[GET session]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /avatar — 上传头像（base64），保存到本地，返回可访问 URL
+// POST /avatar — 头像上传
 app.post('/avatar', async (req, res) => {
   try {
     const { deviceId, base64 } = req.body
     if (!deviceId || !base64) { res.status(400).json({ error: '缺少 deviceId 或 base64' }); return }
     const buffer = Buffer.from(base64 as string, 'base64')
     if (buffer.length > 1_500_000) { res.status(413).json({ error: '头像文件过大' }); return }
-    const filename = `${deviceId}.jpg`
-    writeFileSync(join(AVATARS_DIR, filename), buffer)
-    // 返回的 URL 走 IIS 反向代理，即 /api/kitchen/avatars/xxx.jpg
-    const url = `/api/kitchen/avatars/${filename}`
-    console.log(`[avatar] 保存成功 deviceId=${deviceId} size=${buffer.length}`)
-    res.json({ ok: true, url })
-  } catch (e) {
-    console.error('[POST avatar]', e)
-    res.status(500).json({ error: '头像上传失败' })
-  }
+    writeFileSync(join(AVATARS_DIR, `${deviceId}.jpg`), buffer)
+    console.log(`[avatar] 保存 deviceId=${deviceId} size=${buffer.length}`)
+    res.json({ ok: true, url: `/api/kitchen/avatars/${deviceId}.jpg` })
+  } catch (e) { console.error('[POST avatar]', e); res.status(500).json({ error: '头像上传失败' }) }
 })
 
-// PUT /session/:sid/participant — 注册或更新参与者头像和昵称
-app.put('/session/:sid/participant', async (req, res) => {
+// PUT /session/:sid/participant — 注册参与者
+app.put('/session/:sid/participant', (req, res) => {
   try {
     const { deviceId, avatarUrl, nickName } = req.body
     if (!deviceId) { res.status(400).json({ error: '缺少 deviceId' }); return }
-
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
-    const idx = sessions.findIndex(s => s.id === req.params.sid)
+    const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+    if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
 
-    const infos: ParticipantInfo[] = sessions[idx].participantInfos ?? []
+    const infos = _sessions[idx].participantInfos ?? []
     const existingIdx = infos.findIndex(p => p.deviceId === deviceId)
-    const info: ParticipantInfo = {
-      deviceId, avatarUrl: avatarUrl || '', nickName: nickName || '',
-      updatedAt: new Date().toISOString(),
-    }
+    const info: ParticipantInfo = { deviceId, avatarUrl: avatarUrl || '', nickName: nickName || '', updatedAt: new Date().toISOString() }
     if (existingIdx >= 0) infos[existingIdx] = info
     else infos.push(info)
 
-    // 同步 participants 列表（保持兼容）
-    const participants = sessions[idx].participants ?? []
+    const participants = _sessions[idx].participants ?? []
     if (!participants.includes(deviceId)) participants.push(deviceId)
-
-    sessions[idx] = {
-      ...sessions[idx],
-      participantInfos: infos,
-      participants,
-      updatedAt: new Date().toISOString(),
-    }
-    await cosPut(SESSIONS_KEY, sessions)
+    _sessions[idx].participantInfos = infos
+    _sessions[idx].participants = participants
+    _sessions[idx].updatedAt = new Date().toISOString()
+    _flushCOS()
     res.json({ ok: true })
-  } catch (e) {
-    console.error('[PUT participant]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[PUT participant]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// PUT /session/:sid/cart — 同步购物车，记录参与设备
-app.put('/session/:sid/cart', async (req, res) => {
+// PUT /session/:sid/cart — 同步购物车
+app.put('/session/:sid/cart', (req, res) => {
   try {
     const items: CartItem[] = req.body?.items
     const deviceId: string = req.body?.deviceId || ''
     if (!Array.isArray(items)) { res.status(400).json({ error: '参数错误' }); return }
 
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
-    const idx = sessions.findIndex(s => s.id === req.params.sid)
+    const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+    if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
 
-    // 记录参与设备（去重）
-    const participants = sessions[idx].participants ?? []
+    const participants = _sessions[idx].participants ?? []
     if (deviceId && !participants.includes(deviceId)) participants.push(deviceId)
 
-    // 按设备合并购物车：保留其他设备的条目，替换本设备的条目
-    // 这样多人同时操作不会互相覆盖
-    const existing = sessions[idx].items ?? []
-    const othersItems = deviceId
-      ? existing.filter(i => i.deviceId && i.deviceId !== deviceId)
-      : []   // 无 deviceId 则全量替换（兼容旧版客户端）
+    // 按设备合并：保留其他设备的条目，替换本设备的
+    const existing = _sessions[idx].items ?? []
+    const othersItems = deviceId ? existing.filter(i => i.deviceId && i.deviceId !== deviceId) : []
     const myItems: CartItem[] = items.map(i => ({ ...i, deviceId: deviceId || undefined }))
-
-    sessions[idx] = {
-      ...sessions[idx],
-      items: [...othersItems, ...myItems],
-      participants,
-      updatedAt: new Date().toISOString(),
-    }
-    await cosPut(SESSIONS_KEY, sessions)
+    _sessions[idx].items = [...othersItems, ...myItems]
+    _sessions[idx].participants = participants
+    _sessions[idx].updatedAt = new Date().toISOString()
+    _flushCOS()
     res.json({ ok: true, participantCount: participants.length })
-  } catch (e) {
-    console.error('[PUT cart]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[PUT cart]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /session/:sid/subscribe — 用户订阅消息：code 换 openid 并存储
+// POST /session/:sid/subscribe — 微信订阅
 app.post('/session/:sid/subscribe', async (req, res) => {
-  console.log(`[Subscribe] 收到请求 sid=${req.params.sid}`)
-  if (!WX_APP_ID || !WX_SECRET) {
-    console.warn('[Subscribe] 未配置 WX_APP_ID / WX_APP_SECRET，跳过')
-    res.json({ ok: true, note: '未配置 WX_APP_SECRET，已跳过' })
-    return
-  }
+  if (!WX_APP_ID || !WX_SECRET) { res.json({ ok: true, note: '未配置 WX_APP_SECRET，已跳过' }); return }
   try {
     const { code } = req.body
     if (!code) { res.status(400).json({ error: '缺少 code' }); return }
-
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
-    const idx = sessions.findIndex(s => s.id === req.params.sid)
+    const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-
     let openid: string
-    try {
-      openid = await code2openid(code)
-      console.log(`[Subscribe] code2openid 成功 openid=${openid.slice(0, 8)}...`)
-    } catch (e: any) {
-      console.warn('[Subscribe] code2openid 失败:', e.message)
-      res.json({ ok: true, note: 'openid 获取失败，已跳过' })
-      return
-    }
-
-    const subscribers = sessions[idx].subscribers ?? []
+    try { openid = await code2openid(code); console.log(`[Subscribe] openid=${openid.slice(0, 8)}...`) }
+    catch { res.json({ ok: true, note: 'openid 获取失败，已跳过' }); return }
+    const subscribers = _sessions[idx].subscribers ?? []
     if (!subscribers.includes(openid)) subscribers.push(openid)
-    sessions[idx] = { ...sessions[idx], subscribers, updatedAt: new Date().toISOString() }
-    await cosPut(SESSIONS_KEY, sessions)
-    console.log(`[Subscribe] openid 已存储 sid=${req.params.sid} 共${subscribers.length}人`)
+    _sessions[idx].subscribers = subscribers
+    _sessions[idx].updatedAt = new Date().toISOString()
+    _flushCOS()
+    console.log(`[Subscribe] 已存储 sid=${req.params.sid} 共${subscribers.length}人`)
     res.json({ ok: true })
-  } catch (e) {
-    console.error('[POST subscribe]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[POST subscribe]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /session/:sid/order — 提交点单并推送通知
+// POST /session/:sid/order — 提交点单
 app.post('/session/:sid/order', async (req, res) => {
   try {
     const payload: OrderPayload = req.body
     if (!payload?.items?.length) { res.status(400).json({ error: '点单为空' }); return }
-
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
-    const idx = sessions.findIndex(s => s.id === req.params.sid)
+    const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+    if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
 
     sendPush(payload).catch(e => console.warn('[Push]', e))
 
-    const existing = sessions[idx].items
+    const existing = _sessions[idx].items
     payload.items.forEach(submitted => {
       const found = existing.find(i => i.dish.id === submitted.dish.id)
-      if (found) {
-        found.submittedQty = (found.submittedQty ?? 0) + submitted.quantity
-      } else {
-        existing.push({ ...submitted, submittedQty: submitted.quantity })
-      }
+      if (found) found.submittedQty = (found.submittedQty ?? 0) + submitted.quantity
+      else existing.push({ ...submitted, submittedQty: submitted.quantity })
     })
-    sessions[idx].updatedAt = new Date().toISOString()
-    await cosPut(SESSIONS_KEY, sessions)
+    _sessions[idx].updatedAt = new Date().toISOString()
 
+    // 提交点单时同步到 COS（等待完成，保证数据不丢）
+    await cosPut(SESSIONS_KEY, _sessions)
+    console.log(`[order] 提交成功 sid=${req.params.sid} items=${payload.items.length}`)
     res.json({ ok: true })
-  } catch (e) {
-    console.error('[POST order]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[POST order]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// PUT /session/:sid/close — 关闭工单并向所有订阅用户推送消息
+// PUT /session/:sid/close — 关闭工单
 app.put('/session/:sid/close', async (req, res) => {
   try {
-    const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
-    const idx = sessions.findIndex(s => s.id === req.params.sid)
+    const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (sessions[idx].status === 'closed') { res.json({ ok: true, note: '工单已是关闭状态' }); return }
+    if (_sessions[idx].status === 'closed') { res.json({ ok: true, note: '工单已是关闭状态' }); return }
 
-    sessions[idx] = { ...sessions[idx], status: 'closed', updatedAt: new Date().toISOString() }
-    await cosPut(SESSIONS_KEY, sessions)
+    _sessions[idx].status = 'closed'
+    _sessions[idx].updatedAt = new Date().toISOString()
+    await cosPut(SESSIONS_KEY, _sessions)
 
-    // 向所有订阅用户发送消息（失败不阻塞响应）
-    const subscribers = sessions[idx].subscribers ?? []
+    const subscribers = _sessions[idx].subscribers ?? []
     if (subscribers.length) {
       Promise.all(subscribers.map(openid =>
-        sendSubscribeMsg(openid, sessions[idx]).catch(e =>
-          console.warn(`[Subscribe] 发送失败 openid=${openid}`, e)
-        )
-      )).then(() => console.log(`[Subscribe] 已向 ${subscribers.length} 位用户发送工单结束通知`))
-    } else {
-      console.log('[Subscribe] 无订阅用户')
+        sendSubscribeMsg(openid, _sessions[idx]).catch(e => console.warn(`[Subscribe] 发送失败 openid=${openid}`, e))
+      )).then(() => console.log(`[Subscribe] 已向 ${subscribers.length} 位用户发送通知`))
     }
-
+    console.log(`[close] 关闭 sid=${req.params.sid}`)
     res.json({ ok: true, notified: subscribers.length })
-  } catch (e) {
-    console.error('[PUT close]', e)
-    res.status(500).json({ error: '服务器错误' })
-  }
+  } catch (e) { console.error('[PUT close]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-app.listen(PORT, () => console.log(`[kitchen-api] 监听 :${PORT}`))
+// ── 启动 ──────────────────────────────────────────────────────────────────────
+initFromCOS().then(() => {
+  app.listen(PORT, () => console.log(`[kitchen-api] 就绪，监听 :${PORT}`))
+})
