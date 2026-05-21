@@ -292,8 +292,9 @@ app.post('/session/:sid/subscribe', async (req, res) => {
     try {
       openid = await code2openid(code)
     } catch (e: any) {
-      // 凭证错误或 code 过期时不阻塞，直接跳过
-      console.warn('[Subscribe] code2openid 失败（检查 WX_APP_SECRET 是否正确）:', e.message)
+      console.warn('[Subscribe] code2openid 失败 message:', e.message)
+      console.warn('[Subscribe] code2openid 失败 cause:', e.cause)
+      console.warn('[Subscribe] code2openid 失败 stack:', e.stack)
       res.json({ ok: true, note: 'openid 获取失败，已跳过' })
       return
     }
