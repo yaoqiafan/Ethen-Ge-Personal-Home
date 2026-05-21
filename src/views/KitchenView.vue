@@ -293,9 +293,20 @@
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import type { Dish, DishCategory, OrderSession, CartItem } from '@/types/kitchen'
 import { DISH_CATEGORIES, CATEGORY_ICONS } from '@/types/kitchen'
-import * as kitchenSvc from '@/services/kitchenService'
 import { uploadImage, fileToDataUrl } from '@/services/storageUpload'
 import KitchenToast from '@/components/kitchen/KitchenToast.vue'
+
+const API = 'https://stoplesslab.com/api/kitchen'
+
+async function apiFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`${method} ${path} 失败: ${res.status}`)
+  return res.json() as Promise<T>
+}
 
 // ── Toast ──────────────────────────────────────────────────────────────────────
 const toastRef = ref<InstanceType<typeof KitchenToast> | null>(null)
@@ -335,7 +346,7 @@ const availableCount = computed(() => allDishes.value.filter(d => d.available).l
 
 async function loadDishes() {
   loading.value = true
-  try { allDishes.value = await kitchenSvc.getAll() }
+  try { allDishes.value = await apiFetch<Dish[]>('GET', '/dishes') }
   finally { loading.value = false }
 }
 
@@ -386,10 +397,10 @@ async function handleDishSubmit() {
   saving.value = true
   try {
     if (editingId.value) {
-      await kitchenSvc.update(editingId.value, form.value)
+      await apiFetch('PUT', `/dish/${editingId.value}`, form.value)
       toast('菜品已更新')
     } else {
-      await kitchenSvc.create(form.value)
+      await apiFetch('POST', '/dishes', form.value)
       toast('菜品已添加')
     }
     await loadDishes()
@@ -404,13 +415,13 @@ async function handleDishSubmit() {
 }
 
 async function toggleAvail(id: string) {
-  await kitchenSvc.toggleAvailable(id)
+  await apiFetch('PUT', `/dish/${id}/toggle`)
   await loadDishes()
 }
 
 async function deleteDish(id: string) {
   if (!confirm('确认删除这道菜？')) return
-  await kitchenSvc.remove(id)
+  await apiFetch('DELETE', `/dish/${id}`)
   await loadDishes()
   toast('已删除')
 }
@@ -433,7 +444,7 @@ const activeSessions = computed(() => sessions.value.filter(s => s.status === 'a
 
 async function loadSessions() {
   sessionsLoading.value = true
-  try { sessions.value = await kitchenSvc.getSessions() }
+  try { sessions.value = await apiFetch<OrderSession[]>('GET', '/sessions') }
   finally { sessionsLoading.value = false }
 }
 
@@ -459,7 +470,7 @@ async function doCreateSession() {
   if (!newSessionName.value.trim() || creatingSession.value) return
   creatingSession.value = true; createdLink.value = ''
   try {
-    const sess = await kitchenSvc.createSession(newSessionName.value)
+    const sess = await apiFetch<OrderSession>('POST', '/sessions', { name: newSessionName.value.trim() })
     createdLink.value = makeLink(sess.id)
     newSessionName.value = ''
     await loadSessions()
@@ -487,7 +498,7 @@ async function doCloseSession(id: string) {
 async function doDeleteSession(id: string) {
   if (!confirm('确认删除该工单？此操作不可恢复。')) return
   try {
-    await kitchenSvc.deleteSession(id)
+    await apiFetch('DELETE', `/session/${id}`)
     await loadSessions()
     toast('工单已删除')
     if (expandedId.value === id) expandedId.value = null
@@ -546,7 +557,7 @@ const customRequestCount = computed(() => customRequests.value.length)
 async function loadCustomRequests() {
   requestsLoading.value = true
   try {
-    const allSess = await kitchenSvc.getSessions()
+    const allSess = await apiFetch<OrderSession[]>('GET', '/sessions')
     // 把所有 session 中的自定义菜品汇总，去重（以 dish.name 为 key，累加数量）
     const map = new Map<string, CustomRequest>()
     for (const sess of allSess) {
@@ -587,7 +598,7 @@ async function handlePromoteSubmit() {
   if (!promoteTarget.value) return
   promoteSaving.value = true
   try {
-    await kitchenSvc.create({
+    await apiFetch('POST', '/dishes', {
       name: promoteForm.value.name,
       category: promoteForm.value.category,
       description: promoteForm.value.description,

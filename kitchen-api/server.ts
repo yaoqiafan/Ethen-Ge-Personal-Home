@@ -54,7 +54,7 @@ type DishCategory = '荤菜' | '素菜' | '汤羹' | '主食' | '小吃'
 type SessionStatus = 'active' | 'closed'
 interface Dish { id: string; name: string; category: DishCategory; description: string; imageUrl: string; available: boolean; price: number; createdAt: string; isCustom?: boolean }
 interface CartItem { dish: Dish; quantity: number; submittedQty?: number; preferences?: string[]; deviceId?: string }
-interface OrderPayload { items: CartItem[]; note: string; submittedAt: string }
+interface OrderPayload { items: CartItem[]; note: string; submittedAt: string; subscribeCode?: string }
 interface ParticipantInfo { deviceId: string; avatarUrl: string; nickName: string; updatedAt: string }
 interface OrderSession {
   id: string; name: string; status: SessionStatus; items: CartItem[]
@@ -115,13 +115,17 @@ let _sessions: OrderSession[] = []
 let _dishes: Dish[] = []
 let _ready = false
 let _cosBackupTimer: ReturnType<typeof setTimeout> | null = null
+let _cosDishesBkTimer: ReturnType<typeof setTimeout> | null = null
 
-function _saveLocal(): void {
+function _saveSessions(): void {
   try { writeFileSync(LOCAL_SESSIONS, JSON.stringify(_sessions, null, 2)) } catch (e) { console.warn('[local] sessions 写入失败:', e) }
 }
 
+function _saveDishes(): void {
+  try { writeFileSync(LOCAL_DISHES, JSON.stringify(_dishes, null, 2)) } catch (e) { console.warn('[local] dishes 写入失败:', e) }
+}
+
 function _scheduleCosBackup(): void {
-  // 防抖 3 秒，批量合并多次操作只上传一次
   if (_cosBackupTimer) clearTimeout(_cosBackupTimer)
   _cosBackupTimer = setTimeout(() => {
     _cosBackupTimer = null
@@ -129,9 +133,22 @@ function _scheduleCosBackup(): void {
   }, 3000)
 }
 
+function _scheduleCosBackupDishes(): void {
+  if (_cosDishesBkTimer) clearTimeout(_cosDishesBkTimer)
+  _cosDishesBkTimer = setTimeout(() => {
+    _cosDishesBkTimer = null
+    cosPut(DISHES_KEY, _dishes).catch(e => console.warn('[COS backup] dishes:', e.message))
+  }, 3000)
+}
+
 function _persist(): void {
-  _saveLocal()
+  _saveSessions()
   _scheduleCosBackup()
+}
+
+function _persistDishes(): void {
+  _saveDishes()
+  _scheduleCosBackupDishes()
 }
 
 async function initData(): Promise<void> {
@@ -150,8 +167,8 @@ async function initData(): Promise<void> {
     console.log(`[init] 本地文件加载完成: ${_sessions.length} 工单, ${_dishes.length} 菜品`)
     // 后台从 COS 拉取最新（防止多台服务器场景数据不一致）
     Promise.all([cosGet<OrderSession[]>(SESSIONS_KEY), cosGet<Dish[]>(DISHES_KEY)]).then(([s, d]) => {
-      if (s) { _sessions = s; _saveLocal() }
-      if (d) { _dishes = d; writeFileSync(LOCAL_DISHES, JSON.stringify(d, null, 2)) }
+      if (s) { _sessions = s; _saveSessions() }
+      if (d) { _dishes = d; _saveDishes() }
       if (s || d) console.log('[init] COS 后台同步完成')
     }).catch(() => {})
     return
@@ -164,8 +181,8 @@ async function initData(): Promise<void> {
     if (s !== null && d !== null) {
       _sessions = s
       _dishes   = d
-      _saveLocal()
-      writeFileSync(LOCAL_DISHES, JSON.stringify(d, null, 2))
+      _saveSessions()
+      _saveDishes()
       _ready = true
       console.log(`[init] COS 加载完成: ${_sessions.length} 工单, ${_dishes.length} 菜品`)
       return
@@ -198,21 +215,26 @@ async function code2openid(code: string): Promise<string> {
   return d.openid as string
 }
 
-// ── 订阅消息 & 推送 ───────────────────────────────────────────────────────────
-async function sendSubscribeMsg(openid: string, session: OrderSession): Promise<void> {
-  if (!WX_TMPL_ID) return
+// ── 订阅消息（每次点单时随 code 一起发，一次性不存储）───────────────────────
+async function sendSubscribeMsgByCode(code: string, payload: OrderPayload, sessionName: string): Promise<void> {
+  if (!WX_TMPL_ID || !WX_APP_ID || !WX_SECRET) return
+  let openid: string
+  try { openid = await code2openid(code) } catch (e: any) { console.warn('[Subscribe] code2openid 失败:', e.message); return }
   const token = await getWxToken()
   const fmt = (d: string) => new Date(d).toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  const total = session.items.reduce((s, i) => s + i.quantity, 0)
+  const dishList = payload.items.map(i => `${i.dish.name}×${i.quantity - (i.submittedQty ?? 0)}`).join('、').slice(0, 20)
   const result = await wxRequest<any>(`https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${token}`, {
     touser: openid, template_id: WX_TMPL_ID, page: 'pages/order/order', miniprogram_state: 'formal', lang: 'zh_CN',
     data: {
-      thing1: { value: `${session.name.slice(0, 14)}，共${total}道菜` },
-      phrase2: { value: '已完成' }, date3: { value: fmt(session.createdAt) },
-      thing5: { value: '感谢用餐，欢迎下次光临！' }, time16: { value: fmt(new Date().toISOString()) },
+      thing1:  { value: `${sessionName.slice(0, 10)}：${dishList}` },
+      phrase2: { value: '已收到' },
+      date3:   { value: fmt(payload.submittedAt) },
+      thing5:  { value: '大厨正在为您准备，请耐心等候' },
+      time16:  { value: fmt(new Date().toISOString()) },
     },
   })
-  if (result.errcode && result.errcode !== 0) throw new Error(`${result.errmsg} (${result.errcode})`)
+  if (result.errcode && result.errcode !== 0) console.warn(`[Subscribe] 发送失败: ${result.errmsg} (${result.errcode})`)
+  else console.log(`[Subscribe] 通知已发送 openid=${openid.slice(0, 8)}...`)
 }
 
 async function sendPush(payload: OrderPayload): Promise<void> {
@@ -332,26 +354,8 @@ app.put('/session/:sid/cart', (req, res) => {
   } catch (e) { console.error('[PUT cart]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /session/:sid/subscribe
-app.post('/session/:sid/subscribe', async (req, res) => {
-  if (!WX_APP_ID || !WX_SECRET) { res.json({ ok: true, note: '未配置微信参数，已跳过' }); return }
-  try {
-    const { code } = req.body
-    if (!code) { res.status(400).json({ error: '缺少 code' }); return }
-    const idx = sessionIndex(req.params.sid)
-    if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    let openid: string
-    try { openid = await code2openid(code) }
-    catch { res.json({ ok: true, note: 'openid 获取失败，已跳过' }); return }
-    const subs = _sessions[idx].subscribers ?? []
-    if (!subs.includes(openid)) subs.push(openid)
-    _sessions[idx].subscribers = subs
-    _sessions[idx].updatedAt   = new Date().toISOString()
-    _persist()
-    console.log(`[Subscribe] 已存储 sid=${req.params.sid} 共${subs.length}人`)
-    res.json({ ok: true })
-  } catch (e) { console.error('[POST subscribe]', e); res.status(500).json({ error: '服务器错误' }) }
-})
+// POST /session/:sid/subscribe — 已废弃，保留兼容旧客户端
+app.post('/session/:sid/subscribe', (_req, res) => { res.json({ ok: true }) })
 
 // POST /session/:sid/order
 app.post('/session/:sid/order', async (req, res) => {
@@ -361,7 +365,16 @@ app.post('/session/:sid/order', async (req, res) => {
     const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
     if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+
+    // 推送通知（Server酱/Bark）
     sendPush(payload).catch(e => console.warn('[Push]', e))
+
+    // 微信订阅消息：用随单携带的 code 立即换 openid 发通知，一次性不存储
+    if (payload.subscribeCode) {
+      sendSubscribeMsgByCode(payload.subscribeCode, payload, _sessions[idx].name)
+        .catch(e => console.warn('[Subscribe]', e))
+    }
+
     const existing = _sessions[idx].items
     payload.items.forEach(sub => {
       const found = existing.find(i => i.dish.id === sub.dish.id)
@@ -369,7 +382,7 @@ app.post('/session/:sid/order', async (req, res) => {
       else existing.push({ ...sub, submittedQty: sub.quantity })
     })
     _sessions[idx].updatedAt = new Date().toISOString()
-    _saveLocal()  // 立即落盘
+    _saveSessions()
     cosPut(SESSIONS_KEY, _sessions).catch(e => console.warn('[COS] order 备份失败:', e.message))
     console.log(`[order] 提交成功 sid=${req.params.sid} items=${payload.items.length}`)
     res.json({ ok: true })
@@ -377,23 +390,103 @@ app.post('/session/:sid/order', async (req, res) => {
 })
 
 // PUT /session/:sid/close
-app.put('/session/:sid/close', async (req, res) => {
+app.put('/session/:sid/close', (req, res) => {
   try {
     const idx = sessionIndex(req.params.sid)
     if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
     if (_sessions[idx].status === 'closed') { res.json({ ok: true, note: '工单已是关闭状态' }); return }
     _sessions[idx].status    = 'closed'
     _sessions[idx].updatedAt = new Date().toISOString()
-    _saveLocal()
+    _saveSessions()
     cosPut(SESSIONS_KEY, _sessions).catch(e => console.warn('[COS] close 备份失败:', e.message))
-    const subs = _sessions[idx].subscribers ?? []
-    if (subs.length) {
-      Promise.all(subs.map(o => sendSubscribeMsg(o, _sessions[idx]).catch(e => console.warn(`[Subscribe] 发送失败`, e))))
-        .then(() => console.log(`[Subscribe] 已向 ${subs.length} 位用户发送通知`))
-    }
     console.log(`[close] 关闭 sid=${req.params.sid}`)
-    res.json({ ok: true, notified: subs.length })
+    res.json({ ok: true })
   } catch (e) { console.error('[PUT close]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// DELETE /session/:sid
+app.delete('/session/:sid', (req, res) => {
+  try {
+    const before = _sessions.length
+    _sessions = _sessions.filter(s => s.id !== req.params.sid)
+    if (_sessions.length === before) { res.status(404).json({ error: '工单不存在' }); return }
+    _persist()
+    console.log(`[session] 删除 sid=${req.params.sid}`)
+    res.json({ ok: true })
+  } catch (e) { console.error('[DELETE session]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// GET /sessions — 所有工单列表（管理后台用）
+app.get('/sessions', (_req, res) => {
+  try {
+    res.json([..._sessions].sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+  } catch (e) { console.error('[GET sessions]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// GET /dishes
+app.get('/dishes', (_req, res) => {
+  try { res.json(_dishes) }
+  catch (e) { console.error('[GET dishes]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// POST /dishes — 新增菜品
+app.post('/dishes', (req, res) => {
+  try {
+    const { name, category, description, imageUrl, available, price } = req.body
+    if (!name?.trim()) { res.status(400).json({ error: '缺少菜品名称' }); return }
+    const dish: Dish = {
+      id: `d${Date.now()}`, name: name.trim(), category: category || '荤菜',
+      description: description || '', imageUrl: imageUrl || '',
+      available: available !== false, price: Number(price) || 0,
+      createdAt: new Date().toISOString(),
+    }
+    _dishes.push(dish)
+    _persistDishes()
+    console.log(`[dishes] 新增: ${dish.id} name=${dish.name}`)
+    res.json(dish)
+  } catch (e) { console.error('[POST dishes]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// PUT /dish/:id — 更新菜品
+app.put('/dish/:id', (req, res) => {
+  try {
+    const idx = _dishes.findIndex(d => d.id === req.params.id)
+    if (idx === -1) { res.status(404).json({ error: '菜品不存在' }); return }
+    const { name, category, description, imageUrl, available, price } = req.body
+    _dishes[idx] = {
+      ..._dishes[idx],
+      ...(name !== undefined       ? { name: name.trim() } : {}),
+      ...(category !== undefined   ? { category } : {}),
+      ...(description !== undefined? { description } : {}),
+      ...(imageUrl !== undefined   ? { imageUrl } : {}),
+      ...(available !== undefined  ? { available } : {}),
+      ...(price !== undefined      ? { price: Number(price) } : {}),
+    }
+    _persistDishes()
+    res.json(_dishes[idx])
+  } catch (e) { console.error('[PUT dish]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// PUT /dish/:id/toggle — 切换供应状态
+app.put('/dish/:id/toggle', (req, res) => {
+  try {
+    const idx = _dishes.findIndex(d => d.id === req.params.id)
+    if (idx === -1) { res.status(404).json({ error: '菜品不存在' }); return }
+    _dishes[idx].available = !_dishes[idx].available
+    _persistDishes()
+    res.json(_dishes[idx])
+  } catch (e) { console.error('[PUT dish/toggle]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// DELETE /dish/:id — 删除菜品
+app.delete('/dish/:id', (req, res) => {
+  try {
+    const before = _dishes.length
+    _dishes = _dishes.filter(d => d.id !== req.params.id)
+    if (_dishes.length === before) { res.status(404).json({ error: '菜品不存在' }); return }
+    _persistDishes()
+    res.json({ ok: true })
+  } catch (e) { console.error('[DELETE dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // ── 启动 ──────────────────────────────────────────────────────────────────────
