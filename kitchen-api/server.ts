@@ -1,8 +1,13 @@
 import 'dotenv/config'
 import { createHmac, createHash } from 'crypto'
+import { Agent, setGlobalDispatcher } from 'undici'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
+
+// 微信 API 仅支持 IPv4，强制全局 fetch 使用 IPv4 套接字
+// --dns-result-order=ipv4first 只影响 DNS 解析顺序，不影响 TCP 连接族
+setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
 
 // ── 环境变量 ──────────────────────────────────────────────────────────────────
 const PORT        = Number(process.env.PORT)                  || 3004
