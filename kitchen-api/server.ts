@@ -101,15 +101,23 @@ const _cosBase = () => `https://${BUCKET}.cos.${REGION}.myqcloud.com`
 
 async function cosGet<T>(key: string, fallback: T): Promise<T> {
   const path = `/${key}`
-  try {
-    const res = await fetch(`${_cosBase()}${path}`, {
-      headers: { Authorization: _cosAuth('GET', path) },
-    })
-    if (!res.ok) return fallback
-    return await res.json() as T
-  } catch {
-    return fallback
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${_cosBase()}${path}`, {
+        headers: { Authorization: _cosAuth('GET', path) },
+      })
+      if (!res.ok) return fallback
+      return await res.json() as T
+    } catch (e) {
+      if (attempt === 2) {
+        console.warn(`[cosGet] ${key} 第 ${attempt + 1} 次失败，放弃:`, (e as Error).message)
+        return fallback
+      }
+      console.warn(`[cosGet] ${key} 第 ${attempt + 1} 次失败，300ms 后重试:`, (e as Error).message)
+      await new Promise(r => setTimeout(r, 300))
+    }
   }
+  return fallback
 }
 
 async function cosPut(key: string, body: unknown): Promise<void> {
