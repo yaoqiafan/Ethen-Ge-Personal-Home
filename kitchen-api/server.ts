@@ -238,6 +238,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }))
 app.get('/sessions/active', async (_req, res) => {
   try {
     const sessions = await cosGet<OrderSession[]>(SESSIONS_KEY, [])
+    console.log(`[sessions/active] COS 读取 ${sessions.length} 个工单，active: ${sessions.filter(s=>s.status==='active').length} 个`)
     const active = sessions.filter(s => s.status === 'active')
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
     if (!active) { res.json({ found: false }); return }
