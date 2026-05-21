@@ -5,6 +5,9 @@ import { Agent, setGlobalDispatcher } from 'undici'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import { mkdirSync, writeFileSync, existsSync } from 'fs'
 
 // COS 调用走 undici fetch，强制 IPv4
 setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
@@ -143,19 +146,6 @@ async function cosPut(key: string, body: unknown): Promise<void> {
   if (!res.ok) throw new Error(`COS PUT failed: ${res.status} ${await res.text()}`)
 }
 
-async function cosPutBinary(key: string, buffer: Buffer, contentType: string): Promise<void> {
-  const path = `/${key}`
-  const res = await fetch(`${_cosBase()}${path}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: _cosAuth('PUT', path),
-      'Content-Type': contentType,
-    },
-    body: buffer,
-  })
-  if (!res.ok) throw new Error(`COS PUT binary failed: ${res.status} ${await res.text()}`)
-}
-
 // ── 微信 access_token（内存缓存，提前 5 分钟刷新）──────────────────────────────
 let _wxToken = ''
 let _wxTokenExp = 0
@@ -261,6 +251,14 @@ const app = express()
 app.use(cors())
 app.use(express.json({ limit: '2mb' }))
 
+// 头像本地存储（不用 COS，避免连接不稳定）
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const AVATARS_DIR = join(__dirname, 'avatars')
+if (!existsSync(AVATARS_DIR)) mkdirSync(AVATARS_DIR, { recursive: true })
+// 通过 /api/kitchen/avatars/* → /avatars/* 对外服务
+app.use('/avatars', express.static(AVATARS_DIR))
+
 // 健康检查
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
@@ -327,17 +325,18 @@ app.get('/session/:sid', async (req, res) => {
   }
 })
 
-// POST /avatar — 上传头像（base64），存入 COS，返回永久链接
+// POST /avatar — 上传头像（base64），保存到本地，返回可访问 URL
 app.post('/avatar', async (req, res) => {
   try {
     const { deviceId, base64 } = req.body
     if (!deviceId || !base64) { res.status(400).json({ error: '缺少 deviceId 或 base64' }); return }
     const buffer = Buffer.from(base64 as string, 'base64')
     if (buffer.length > 1_500_000) { res.status(413).json({ error: '头像文件过大' }); return }
-    const key = `kitchen/avatars/${deviceId}.jpg`
-    await cosPutBinary(key, buffer, 'image/jpeg')
-    const url = `${_cosBase()}/${key}`
-    console.log(`[avatar] 上传成功 deviceId=${deviceId} size=${buffer.length}`)
+    const filename = `${deviceId}.jpg`
+    writeFileSync(join(AVATARS_DIR, filename), buffer)
+    // 返回的 URL 走 IIS 反向代理，即 /api/kitchen/avatars/xxx.jpg
+    const url = `/api/kitchen/avatars/${filename}`
+    console.log(`[avatar] 保存成功 deviceId=${deviceId} size=${buffer.length}`)
     res.json({ ok: true, url })
   } catch (e) {
     console.error('[POST avatar]', e)
