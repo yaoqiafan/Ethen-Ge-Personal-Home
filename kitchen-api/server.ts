@@ -9,7 +9,8 @@ import { scSend } from 'serverchan-sdk'
 // COS 调用走 undici fetch，强制 IPv4
 setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
 
-// 微信 API 用 Node.js 原生 https 模块——undici 在本机与微信服务器 TLS 握手超时
+// 微信 API 用 Node.js 原生 https 模块（undici/fetch 的 OpenSSL 与微信服务器 TLS 握手不兼容）
+// ALPNProtocols 强制只协商 http/1.1，与 curl/Schannel 行为一致，避免 OpenSSL 等待 ALPN 回复挂死
 function wxRequest<T>(url: string, postBody?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
     const u = new URL(url)
@@ -23,6 +24,10 @@ function wxRequest<T>(url: string, postBody?: unknown): Promise<T> {
         headers: payload
           ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
           : {},
+        // 明确只使用 TLS 1.2 + HTTP/1.1，匹配微信服务器实际支持的配置
+        minVersion: 'TLSv1.2' as any,
+        maxVersion: 'TLSv1.3' as any,
+        ALPNProtocols: ['http/1.1'],
       },
       (res) => {
         let raw = ''
