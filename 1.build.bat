@@ -45,92 +45,16 @@ echo [OK] Build completed.
 echo.
 
 rem ============================================
-echo [4/4] Generating IIS web.config...
+echo [4/4] Copying IIS web.config...
 if not exist "dist" (
     echo [ERROR] dist directory not found. Build may have failed.
     goto end
 )
 
-if exist "dist\web.config" del "dist\web.config"
-if exist "web.config" del "web.config"
+rem Vite 构建时已从 public\ 复制 web.config 到 dist\，此处再同步一份到根目录供本地预览
+copy "dist\web.config" "web.config" >nul 2>&1
 
-set WEBCONFIG_CONTENT=^<?xml version="1.0" encoding="UTF-8"?^>
-
-(
-echo ^<?xml version="1.0" encoding="UTF-8"?^>
-echo ^<configuration^>
-echo   ^<system.webServer^>
-echo     ^<rewrite^>
-echo       ^<allowedServerVariables^>
-echo         ^<add name="HTTP_AUTHORIZATION" /^>
-echo         ^<add name="HTTP_UPGRADE" /^>
-echo         ^<add name="HTTP_CONNECTION" /^>
-echo       ^</allowedServerVariables^>
-echo       ^<rules^>
-echo.
-echo         ^<!-- BaGet NuGet Proxy --^>
-echo         ^<rule name="BaGet Proxy" stopProcessing="true"^>
-echo           ^<match url="^^nuget/?(.*)" /^>
-echo           ^<action type="Rewrite" url="http://101.43.39.163:8081/{R:1}" /^>
-echo         ^</rule^>
-echo.
-echo         ^<!-- OpenClaw Gateway AI Proxy --^>
-echo         ^<rule name="OpenClaw Gateway API Proxy" stopProcessing="true"^>
-echo           ^<match url="^^api/ai/(.*)" /^>
-echo           ^<serverVariables^>
-echo             ^<set name="HTTP_AUTHORIZATION" value="Bearer d6b3b76d798363c11793033e60a71ccc819242716b002149" /^>
-echo           ^</serverVariables^>
-echo           ^<action type="Rewrite" url="http://127.0.0.1:18789/v1/{R:1}" /^>
-echo         ^</rule^>
-echo.
-echo         ^<!-- Kitchen API Proxy --^>
-echo         ^<rule name="Kitchen API Proxy" stopProcessing="true"^>
-echo           ^<match url="^^api/kitchen/(.*)" /^>
-echo           ^<action type="Rewrite" url="http://localhost:3004/{R:1}" /^>
-echo         ^</rule^>
-echo.
-echo         ^<!-- PF WebSocket Adapter Proxy (must be before PF API to avoid being swallowed) --^>
-echo         ^<rule name="PF WebSocket Proxy" stopProcessing="true"^>
-echo           ^<match url="^^api/v1/ws" /^>
-echo           ^<serverVariables^>
-echo             ^<set name="HTTP_UPGRADE" value="{HTTP_UPGRADE}" /^>
-echo             ^<set name="HTTP_CONNECTION" value="{HTTP_CONNECTION}" /^>
-echo           ^</serverVariables^>
-echo           ^<action type="Rewrite" url="http://localhost:3002" /^>
-echo         ^</rule^>
-echo.
-echo         ^<!-- PF API Adapter Proxy (HTTP) --^>
-echo         ^<rule name="PF API Proxy" stopProcessing="true"^>
-echo           ^<match url="^^api/v1/(.*)" /^>
-echo           ^<action type="Rewrite" url="http://localhost:3001/api/v1/{R:1}" /^>
-echo         ^</rule^>
-echo.
-echo         ^<!-- Vue Router History Mode Fallback --^>
-echo         ^<rule name="Vue History Mode" stopProcessing="true"^>
-echo           ^<match url="(.*)" /^>
-echo           ^<conditions logicalGrouping="MatchAll"^>
-echo             ^<add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" /^>
-echo             ^<add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" /^>
-echo           ^</conditions^>
-echo           ^<action type="Rewrite" url="/" /^>
-echo         ^</rule^>
-echo.
-echo       ^</rules^>
-echo     ^</rewrite^>
-echo     ^<httpProtocol^>
-echo       ^<customHeaders^>
-echo         ^<remove name="X-Powered-By" /^>
-echo         ^<add name="X-Frame-Options" value="SAMEORIGIN" /^>
-echo         ^<add name="X-Content-Type-Options" value="nosniff" /^>
-echo       ^</customHeaders^>
-echo     ^</httpProtocol^>
-echo   ^</system.webServer^>
-echo ^</configuration^>
-) > "web.config"
-
-copy "web.config" "dist\web.config" >nul
-
-echo [OK] web.config generated (root + dist\).
+echo [OK] web.config ready (dist\ + root).
 
 rem -- Record end time --
 set END_TIME=%TIME%
