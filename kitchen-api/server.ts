@@ -71,6 +71,7 @@ interface CartItem {
   dish: Dish; quantity: number
   submittedQty?: number
   preferences?: string[]
+  deviceId?: string   // 记录来源设备，防止多端互相覆盖购物车
 }
 interface OrderPayload {
   items: CartItem[]; note: string; submittedAt: string
@@ -103,7 +104,8 @@ async function cosGet<T>(key: string, fallback: T): Promise<T> {
   const path = `/${key}`
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(`${_cosBase()}${path}`, {
+      // ?_ts= 绕过 COS CDN 边缘缓存（COS 签名不含 q-url-param-list，额外参数不影响鉴权）
+      const res = await fetch(`${_cosBase()}${path}?_ts=${Date.now()}`, {
         headers: {
           Authorization: _cosAuth('GET', path),
           'Cache-Control': 'no-store',
@@ -323,9 +325,17 @@ app.put('/session/:sid/cart', async (req, res) => {
     const participants = sessions[idx].participants ?? []
     if (deviceId && !participants.includes(deviceId)) participants.push(deviceId)
 
+    // 按设备合并购物车：保留其他设备的条目，替换本设备的条目
+    // 这样多人同时操作不会互相覆盖
+    const existing = sessions[idx].items ?? []
+    const othersItems = deviceId
+      ? existing.filter(i => i.deviceId && i.deviceId !== deviceId)
+      : []   // 无 deviceId 则全量替换（兼容旧版客户端）
+    const myItems: CartItem[] = items.map(i => ({ ...i, deviceId: deviceId || undefined }))
+
     sessions[idx] = {
       ...sessions[idx],
-      items,
+      items: [...othersItems, ...myItems],
       participants,
       updatedAt: new Date().toISOString(),
     }

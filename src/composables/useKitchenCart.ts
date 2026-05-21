@@ -75,10 +75,21 @@ async function _poll(): Promise<void> {
   try {
     const res = await _get<{ valid: boolean; session?: { items: CartItem[] }; dishes?: Dish[] }>(`/session/${_sid.value}`)
     if (!res.valid) { _stopPoll(); return }
-    if (!_syncTimer) {
-      if (res.session?.items) items.value = res.session.items
-      if (res.dishes)         dishes.value = res.dishes
+    if (!_syncTimer && res.session?.items) {
+      const myDevId = _deviceId()
+      // 只取本设备的条目（服务端按 deviceId 分离存储后的结果）
+      const mine = res.session.items.filter((i: any) => !i.deviceId || i.deviceId === myDevId)
+      // 只同步服务端更新的 submittedQty，不替换本地 quantity（避免覆盖正在编辑的内容）
+      items.value = items.value.map(local => {
+        const sv = mine.find(s => s.dish.id === local.dish.id)
+        return sv ? { ...local, submittedQty: sv.submittedQty ?? local.submittedQty } : local
+      })
+      // 服务端有、本地没有的新条目（如另一标签页添加的）也补充进来
+      const localIds = new Set(items.value.map(i => i.dish.id))
+      const added = mine.filter(i => !localIds.has(i.dish.id))
+      if (added.length) items.value = [...items.value, ...added.map(i => ({ ...i, deviceId: undefined }))]
     }
+    if (res.dishes) dishes.value = res.dishes
   } catch { /* 静默忽略 */ }
 }
 
@@ -164,9 +175,13 @@ export async function initSession(sid: string): Promise<boolean> {
 
     if (!res.valid || !res.session) return false
 
-    _sid.value   = res.session.id
-    _name.value  = res.session.name
-    items.value  = res.session.items ?? []
+    _sid.value  = res.session.id
+    _name.value = res.session.name
+    // 只加载本设备的购物车条目（服务端以 deviceId 分离存储）
+    const myDevId = _deviceId()
+    items.value  = (res.session.items ?? [])
+      .filter((i: any) => !i.deviceId || i.deviceId === myDevId)
+      .map((i: any) => ({ ...i, deviceId: undefined }))
     dishes.value = res.dishes ?? []
 
     _pollTimer = setInterval(_poll, 4000)
