@@ -8,6 +8,7 @@ import { scSend } from 'serverchan-sdk'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs'
+import Database from 'better-sqlite3'
 
 // COS 走 undici fetch，强制 IPv4
 setGlobalDispatcher(new Agent({ connect: { family: 4 } }))
@@ -58,26 +59,179 @@ interface OrderPayload { items: CartItem[]; note: string; submittedAt: string; s
 interface ParticipantInfo { deviceId: string; avatarUrl: string; nickName: string; updatedAt: string }
 interface OrderSession {
   id: string; name: string; status: SessionStatus; items: CartItem[]
-  participants?: string[]; participantInfos?: ParticipantInfo[]; subscribers?: string[]
+  participants?: string[]; participantInfos?: ParticipantInfo[]
   createdAt: string; updatedAt: string
 }
 
-// ── 本地文件路径 ──────────────────────────────────────────────────────────────
+// ── 目录 ──────────────────────────────────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url)
-const __dir = dirname(__filename)
+const __dir      = dirname(__filename)
 const DATA_DIR    = join(__dir, 'data')
 const AVATARS_DIR = join(__dir, 'avatars')
 if (!existsSync(DATA_DIR))    mkdirSync(DATA_DIR,    { recursive: true })
 if (!existsSync(AVATARS_DIR)) mkdirSync(AVATARS_DIR, { recursive: true })
-const LOCAL_SESSIONS = join(DATA_DIR, 'sessions.json')
-const LOCAL_DISHES   = join(DATA_DIR, 'dishes.json')
 
-// ── COS 工具（只做备份，失败仅警告）──────────────────────────────────────────
-const DISHES_KEY   = 'kitchen/dishes.json'
-const SESSIONS_KEY = 'kitchen/sessions.json'
+// ── SQLite 初始化 ─────────────────────────────────────────────────────────────
+const db = new Database(join(DATA_DIR, 'kitchen.db'))
+db.pragma('journal_mode = WAL')
+db.pragma('synchronous = NORMAL')
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS dishes (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    category    TEXT NOT NULL DEFAULT '荤菜',
+    description TEXT NOT NULL DEFAULT '',
+    image_url   TEXT NOT NULL DEFAULT '',
+    available   INTEGER NOT NULL DEFAULT 1,
+    price       REAL NOT NULL DEFAULT 0,
+    is_custom   INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS sessions (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS participants (
+    session_id TEXT NOT NULL,
+    device_id  TEXT NOT NULL,
+    avatar_url TEXT NOT NULL DEFAULT '',
+    nick_name  TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, device_id)
+  );
+  CREATE TABLE IF NOT EXISTS cart_items (
+    session_id    TEXT NOT NULL,
+    device_id     TEXT NOT NULL DEFAULT '',
+    dish_id       TEXT NOT NULL,
+    quantity      INTEGER NOT NULL DEFAULT 0,
+    submitted_qty INTEGER NOT NULL DEFAULT 0,
+    preferences   TEXT NOT NULL DEFAULT '[]',
+    updated_at    TEXT NOT NULL,
+    PRIMARY KEY (session_id, device_id, dish_id)
+  );
+`)
+
+// ── SQLite 数据层 ─────────────────────────────────────────────────────────────
+
+function rowToDish(row: any): Dish {
+  return {
+    id: row.id, name: row.name, category: row.category as DishCategory,
+    description: row.description, imageUrl: row.image_url,
+    available: row.available === 1, price: row.price,
+    createdAt: row.created_at,
+    ...(row.is_custom ? { isCustom: true } : {}),
+  }
+}
+
+function getAllDishes(): Dish[] {
+  return (db.prepare('SELECT * FROM dishes WHERE is_custom = 0 ORDER BY created_at').all() as any[]).map(rowToDish)
+}
+
+function getDish(id: string): Dish | undefined {
+  const row = db.prepare('SELECT * FROM dishes WHERE id = ?').get(id) as any
+  return row ? rowToDish(row) : undefined
+}
+
+function upsertDish(dish: Dish): void {
+  db.prepare(`
+    INSERT INTO dishes (id,name,category,description,image_url,available,price,is_custom,created_at)
+    VALUES (@id,@name,@category,@description,@imageUrl,@available,@price,@isCustom,@createdAt)
+    ON CONFLICT(id) DO UPDATE SET
+      name=excluded.name, category=excluded.category, description=excluded.description,
+      image_url=excluded.image_url, available=excluded.available, price=excluded.price
+  `).run({
+    id: dish.id, name: dish.name, category: dish.category,
+    description: dish.description || '', imageUrl: dish.imageUrl || '',
+    available: dish.available ? 1 : 0, price: dish.price || 0,
+    isCustom: dish.isCustom ? 1 : 0, createdAt: dish.createdAt,
+  })
+}
+
+function buildSessionItems(sessionId: string): CartItem[] {
+  const rows = db.prepare('SELECT * FROM cart_items WHERE session_id = ?').all(sessionId) as any[]
+  const result: CartItem[] = []
+  for (const ci of rows) {
+    const dish = getDish(ci.dish_id)
+    if (!dish) continue
+    result.push({
+      dish, quantity: ci.quantity, submittedQty: ci.submitted_qty || 0,
+      preferences: JSON.parse(ci.preferences || '[]'),
+      deviceId: ci.device_id || undefined,
+    })
+  }
+  return result
+}
+
+function buildParticipants(sessionId: string): { ids: string[]; infos: ParticipantInfo[] } {
+  const rows = db.prepare('SELECT * FROM participants WHERE session_id = ?').all(sessionId) as any[]
+  return {
+    ids:   rows.map(r => r.device_id as string),
+    infos: rows.map(r => ({
+      deviceId: r.device_id as string, avatarUrl: r.avatar_url as string,
+      nickName: r.nick_name as string, updatedAt: r.updated_at as string,
+    })),
+  }
+}
+
+function buildFullSession(sessionId: string): OrderSession | undefined {
+  const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId) as any
+  if (!row) return undefined
+  const { ids, infos } = buildParticipants(sessionId)
+  return {
+    id: row.id, name: row.name, status: row.status as SessionStatus,
+    items: buildSessionItems(sessionId),
+    participants: ids, participantInfos: infos,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  }
+}
+
+// ── JSON → SQLite 一次性迁移（首次启动自动执行）────────────────────────────
+function migrateIfNeeded(): void {
+  const dishCount    = (db.prepare('SELECT COUNT(*) as c FROM dishes').get()   as any).c
+  const sessionCount = (db.prepare('SELECT COUNT(*) as c FROM sessions').get() as any).c
+  if (dishCount > 0 || sessionCount > 0) return
+
+  const DISHES_FILE   = join(DATA_DIR, 'dishes.json')
+  const SESSIONS_FILE = join(DATA_DIR, 'sessions.json')
+  if (!existsSync(DISHES_FILE) && !existsSync(SESSIONS_FILE)) return
+
+  console.log('[migrate] 检测到旧 JSON 数据，开始迁移到 SQLite...')
+  const tx = db.transaction(() => {
+    if (existsSync(DISHES_FILE)) {
+      try {
+        const dishes: Dish[] = JSON.parse(readFileSync(DISHES_FILE, 'utf8'))
+        for (const d of dishes) upsertDish(d)
+        console.log(`[migrate] 菜品: ${dishes.length} 条`)
+      } catch (e) { console.warn('[migrate] dishes 失败:', e) }
+    }
+    if (existsSync(SESSIONS_FILE)) {
+      try {
+        const sessions: OrderSession[] = JSON.parse(readFileSync(SESSIONS_FILE, 'utf8'))
+        for (const s of sessions) {
+          db.prepare('INSERT OR IGNORE INTO sessions (id,name,status,created_at,updated_at) VALUES (?,?,?,?,?)').run(s.id, s.name, s.status, s.createdAt, s.updatedAt)
+          for (const p of s.participantInfos ?? []) {
+            db.prepare('INSERT OR REPLACE INTO participants (session_id,device_id,avatar_url,nick_name,updated_at) VALUES (?,?,?,?,?)').run(s.id, p.deviceId, p.avatarUrl, p.nickName, p.updatedAt)
+          }
+          for (const item of s.items ?? []) {
+            upsertDish(item.dish)
+            db.prepare('INSERT OR REPLACE INTO cart_items (session_id,device_id,dish_id,quantity,submitted_qty,preferences,updated_at) VALUES (?,?,?,?,?,?,?)').run(s.id, item.deviceId || '', item.dish.id, item.quantity, item.submittedQty || 0, JSON.stringify(item.preferences || []), new Date().toISOString())
+          }
+        }
+        console.log(`[migrate] 工单: ${sessions.length} 条`)
+      } catch (e) { console.warn('[migrate] sessions 失败:', e) }
+    }
+  })
+  tx()
+  console.log('[migrate] 迁移完成')
+}
+
+// ── COS 工具（仅用于图片上传）────────────────────────────────────────────────
 function _cosAuth(method: string, urlPath: string): string {
-  const now = Math.floor(Date.now() / 1000)
+  const now     = Math.floor(Date.now() / 1000)
   const keyTime = `${now};${now + 3600}`
   const signKey = createHmac('sha1', SECRET_KEY).update(keyTime).digest('hex')
   const httpStr = `${method.toLowerCase()}\n${urlPath}\n\n\n`
@@ -87,116 +241,17 @@ function _cosAuth(method: string, urlPath: string): string {
 }
 const _cosBase = () => `https://${BUCKET}.cos.${REGION}.myqcloud.com`
 
-async function cosGet<T>(key: string): Promise<T | null> {
-  const path = `/${key}`
-  try {
-    const res = await fetch(`${_cosBase()}${path}?_ts=${Date.now()}`, {
-      headers: { Authorization: _cosAuth('GET', path), 'Cache-Control': 'no-store' },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) return null
-    return await res.json() as T
-  } catch { return null }
-}
-
-async function cosPut(key: string, body: unknown): Promise<void> {
+async function cosUploadImage(key: string, buf: Buffer, contentType = 'image/jpeg'): Promise<string> {
   const path = `/${key}`
   const res = await fetch(`${_cosBase()}${path}`, {
     method: 'PUT',
-    headers: { Authorization: _cosAuth('PUT', path), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body, null, 2),
-    signal: AbortSignal.timeout(10000),
+    headers: { Authorization: _cosAuth('PUT', path), 'Content-Type': contentType, 'Content-Length': String(buf.length) },
+    body: buf,
+    signal: AbortSignal.timeout(15000),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`COS upload failed: HTTP ${res.status}`)
+  return `${_cosBase()}${path}`
 }
-
-// ── 内存 + 本地文件存储（主存储），COS 作为异步备份 ──────────────────────────
-let _sessions: OrderSession[] = []
-let _dishes: Dish[] = []
-let _ready = false
-let _cosBackupTimer: ReturnType<typeof setTimeout> | null = null
-let _cosDishesBkTimer: ReturnType<typeof setTimeout> | null = null
-
-function _saveSessions(): void {
-  try { writeFileSync(LOCAL_SESSIONS, JSON.stringify(_sessions, null, 2)) } catch (e) { console.warn('[local] sessions 写入失败:', e) }
-}
-
-function _saveDishes(): void {
-  try { writeFileSync(LOCAL_DISHES, JSON.stringify(_dishes, null, 2)) } catch (e) { console.warn('[local] dishes 写入失败:', e) }
-}
-
-function _scheduleCosBackup(): void {
-  if (_cosBackupTimer) clearTimeout(_cosBackupTimer)
-  _cosBackupTimer = setTimeout(() => {
-    _cosBackupTimer = null
-    cosPut(SESSIONS_KEY, _sessions).catch(e => console.warn('[COS backup] sessions:', e.message))
-  }, 3000)
-}
-
-function _scheduleCosBackupDishes(): void {
-  if (_cosDishesBkTimer) clearTimeout(_cosDishesBkTimer)
-  _cosDishesBkTimer = setTimeout(() => {
-    _cosDishesBkTimer = null
-    cosPut(DISHES_KEY, _dishes).catch(e => console.warn('[COS backup] dishes:', e.message))
-  }, 3000)
-}
-
-function _persist(): void {
-  _saveSessions()
-  _scheduleCosBackup()
-}
-
-function _persistDishes(): void {
-  _saveDishes()
-  _scheduleCosBackupDishes()
-}
-
-async function initData(): Promise<void> {
-  // 1. 优先读本地文件（快速启动，无需等 COS）
-  let localSessions: OrderSession[] | null = null
-  let localDishes: Dish[] | null = null
-  try {
-    if (existsSync(LOCAL_SESSIONS)) localSessions = JSON.parse(readFileSync(LOCAL_SESSIONS, 'utf8'))
-    if (existsSync(LOCAL_DISHES))   localDishes   = JSON.parse(readFileSync(LOCAL_DISHES, 'utf8'))
-  } catch { }
-
-  if (localSessions && localDishes) {
-    _sessions = localSessions
-    _dishes   = localDishes
-    _ready    = true
-    console.log(`[init] 本地文件加载完成: ${_sessions.length} 工单, ${_dishes.length} 菜品`)
-    // 后台从 COS 拉取最新（防止多台服务器场景数据不一致）
-    Promise.all([cosGet<OrderSession[]>(SESSIONS_KEY), cosGet<Dish[]>(DISHES_KEY)]).then(([s, d]) => {
-      if (s) { _sessions = s; _saveSessions() }
-      if (d) { _dishes = d; _saveDishes() }
-      if (s || d) console.log('[init] COS 后台同步完成')
-    }).catch(() => {})
-    return
-  }
-
-  // 2. 本地文件不存在（首次启动），等待 COS 加载
-  console.log('[init] 首次启动，从 COS 加载数据...')
-  for (let i = 0; i < 5; i++) {
-    const [s, d] = await Promise.all([cosGet<OrderSession[]>(SESSIONS_KEY), cosGet<Dish[]>(DISHES_KEY)])
-    if (s !== null && d !== null) {
-      _sessions = s
-      _dishes   = d
-      _saveSessions()
-      _saveDishes()
-      _ready = true
-      console.log(`[init] COS 加载完成: ${_sessions.length} 工单, ${_dishes.length} 菜品`)
-      return
-    }
-    console.warn(`[init] COS 第 ${i + 1} 次加载失败，2s 后重试...`)
-    await new Promise(r => setTimeout(r, 2000))
-  }
-  // 3. COS 也不可用，使用空数据启动
-  _sessions = []; _dishes = []; _ready = true
-  console.warn('[init] COS 不可用，以空数据启动')
-}
-
-function findSession(sid: string)  { return _sessions.find(s => s.id === sid) }
-function sessionIndex(sid: string) { return _sessions.findIndex(s => s.id === sid) }
 
 // ── 微信 access_token ────────────────────────────────────────────────────────
 let _wxToken = '', _wxTokenExp = 0
@@ -209,13 +264,13 @@ async function getWxToken(): Promise<string> {
   _wxTokenExp = Date.now() + (d.expires_in - 300) * 1000
   return _wxToken
 }
+
 async function code2openid(code: string): Promise<string> {
   const d = await wxRequest<any>(`https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APP_ID}&secret=${WX_SECRET}&js_code=${code}&grant_type=authorization_code`)
   if (!d.openid) throw new Error(`code2session 失败: ${d.errmsg}`)
   return d.openid as string
 }
 
-// ── 订阅消息（每次点单时随 code 一起发，一次性不存储）───────────────────────
 async function sendSubscribeMsgByCode(code: string, payload: OrderPayload, sessionName: string): Promise<void> {
   if (!WX_TMPL_ID || !WX_APP_ID || !WX_SECRET) return
   let openid: string
@@ -256,15 +311,10 @@ async function sendPush(payload: OrderPayload): Promise<void> {
 // ── Express ──────────────────────────────────────────────────────────────────
 const app = express()
 app.use(cors())
-app.use(express.json({ limit: '2mb' }))
+app.use(express.json({ limit: '5mb' }))
 app.use('/avatars', express.static(AVATARS_DIR))
 
-app.get('/health', (_req, res) => res.json({ ok: true, ready: _ready }))
-
-app.use((_req, res, next) => {
-  if (!_ready) { res.status(503).json({ error: '服务启动中，请稍后' }); return }
-  next()
-})
+app.get('/health', (_req, res) => res.json({ ok: true }))
 
 // POST /sessions — 创建工单
 app.post('/sessions', (req, res) => {
@@ -272,32 +322,33 @@ app.post('/sessions', (req, res) => {
     const name: string = req.body?.name?.trim()
     if (!name) { res.status(400).json({ error: '缺少工单名称' }); return }
     const now = new Date().toISOString()
-    const s: OrderSession = { id: `s${Date.now()}`, name, status: 'active', items: [], createdAt: now, updatedAt: now }
-    _sessions.push(s)
-    _persist()
-    console.log(`[sessions] 创建: ${s.id} name=${name}`)
-    res.json(s)
+    const id  = `s${Date.now()}`
+    db.prepare('INSERT INTO sessions (id,name,status,created_at,updated_at) VALUES (?,?,?,?,?)').run(id, name, 'active', now, now)
+    console.log(`[sessions] 创建: ${id} name=${name}`)
+    res.json({ id, name, status: 'active', items: [], createdAt: now, updatedAt: now })
   } catch (e) { console.error('[POST sessions]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // GET /sessions/active
 app.get('/sessions/active', (_req, res) => {
   try {
-    const active = _sessions.filter(s => s.status === 'active').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-    res.json(active ? { found: true, sid: active.id, name: active.name } : { found: false })
+    const row = db.prepare("SELECT * FROM sessions WHERE status='active' ORDER BY created_at DESC LIMIT 1").get() as any
+    res.json(row ? { found: true, sid: row.id, name: row.name } : { found: false })
   } catch (e) { console.error('[GET sessions/active]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // GET /session/:sid
 app.get('/session/:sid', (req, res) => {
   try {
-    const s = findSession(req.params.sid)
-    if (!s || s.status === 'closed') { res.json({ valid: false }); return }
-    res.json({ valid: true, session: s, dishes: _dishes, participantCount: s.participants?.length ?? 1, participantInfos: s.participantInfos ?? [] })
+    const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.sid) as any
+    if (!row || row.status === 'closed') { res.json({ valid: false }); return }
+    const session = buildFullSession(req.params.sid)!
+    const dishes  = getAllDishes()
+    res.json({ valid: true, session, dishes, participantCount: session.participants?.length ?? 0, participantInfos: session.participantInfos ?? [] })
   } catch (e) { console.error('[GET session]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /avatar
+// POST /avatar — 保存参与者头像到本地
 app.post('/avatar', (req, res) => {
   try {
     const { deviceId, base64 } = req.body
@@ -315,19 +366,12 @@ app.put('/session/:sid/participant', (req, res) => {
   try {
     const { deviceId, avatarUrl, nickName } = req.body
     if (!deviceId) { res.status(400).json({ error: '缺少 deviceId' }); return }
-    const idx = sessionIndex(req.params.sid)
-    if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
-    const infos = _sessions[idx].participantInfos ?? []
-    const ei = infos.findIndex(p => p.deviceId === deviceId)
-    const info: ParticipantInfo = { deviceId, avatarUrl: avatarUrl || '', nickName: nickName || '', updatedAt: new Date().toISOString() }
-    if (ei >= 0) infos[ei] = info; else infos.push(info)
-    const parts = _sessions[idx].participants ?? []
-    if (!parts.includes(deviceId)) parts.push(deviceId)
-    _sessions[idx].participantInfos = infos
-    _sessions[idx].participants = parts
-    _sessions[idx].updatedAt = new Date().toISOString()
-    _persist()
+    const row = db.prepare('SELECT status FROM sessions WHERE id = ?').get(req.params.sid) as any
+    if (!row) { res.status(404).json({ error: '工单不存在' }); return }
+    if (row.status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+    const now = new Date().toISOString()
+    db.prepare('INSERT OR REPLACE INTO participants (session_id,device_id,avatar_url,nick_name,updated_at) VALUES (?,?,?,?,?)').run(req.params.sid, deviceId, avatarUrl || '', nickName || '', now)
+    db.prepare('UPDATE sessions SET updated_at=? WHERE id=?').run(now, req.params.sid)
     res.json({ ok: true })
   } catch (e) { console.error('[PUT participant]', e); res.status(500).json({ error: '服务器错误' }) }
 })
@@ -338,19 +382,27 @@ app.put('/session/:sid/cart', (req, res) => {
     const items: CartItem[] = req.body?.items
     const deviceId: string  = req.body?.deviceId || ''
     if (!Array.isArray(items)) { res.status(400).json({ error: '参数错误' }); return }
-    const idx = sessionIndex(req.params.sid)
-    if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
-    const parts = _sessions[idx].participants ?? []
-    if (deviceId && !parts.includes(deviceId)) parts.push(deviceId)
-    const existing  = _sessions[idx].items ?? []
-    const others    = deviceId ? existing.filter(i => i.deviceId && i.deviceId !== deviceId) : []
-    const mine: CartItem[] = items.map(i => ({ ...i, deviceId: deviceId || undefined }))
-    _sessions[idx].items        = [...others, ...mine]
-    _sessions[idx].participants = parts
-    _sessions[idx].updatedAt    = new Date().toISOString()
-    _persist()
-    res.json({ ok: true, participantCount: parts.length })
+    const row = db.prepare('SELECT status FROM sessions WHERE id = ?').get(req.params.sid) as any
+    if (!row) { res.status(404).json({ error: '工单不存在' }); return }
+    if (row.status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+    const now = new Date().toISOString()
+
+    db.transaction(() => {
+      // 清空该设备旧条目，重新写入
+      db.prepare('DELETE FROM cart_items WHERE session_id=? AND device_id=?').run(req.params.sid, deviceId)
+      for (const item of items) {
+        upsertDish(item.dish)  // 自定义菜也一并写入 dishes 表
+        db.prepare('INSERT INTO cart_items (session_id,device_id,dish_id,quantity,submitted_qty,preferences,updated_at) VALUES (?,?,?,?,?,?,?)').run(req.params.sid, deviceId, item.dish.id, item.quantity, item.submittedQty || 0, JSON.stringify(item.preferences || []), now)
+      }
+      // 确保参与者记录存在（不覆盖头像/昵称）
+      if (deviceId) {
+        db.prepare('INSERT OR IGNORE INTO participants (session_id,device_id,avatar_url,nick_name,updated_at) VALUES (?,?,?,?,?)').run(req.params.sid, deviceId, '', '', now)
+      }
+      db.prepare('UPDATE sessions SET updated_at=? WHERE id=?').run(now, req.params.sid)
+    })()
+
+    const participantCount = (db.prepare('SELECT COUNT(*) as c FROM participants WHERE session_id=?').get(req.params.sid) as any).c
+    res.json({ ok: true, participantCount })
   } catch (e) { console.error('[PUT cart]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
@@ -362,28 +414,30 @@ app.post('/session/:sid/order', async (req, res) => {
   try {
     const payload: OrderPayload = req.body
     if (!payload?.items?.length) { res.status(400).json({ error: '点单为空' }); return }
-    const idx = sessionIndex(req.params.sid)
-    if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (_sessions[idx].status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+    const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.sid) as any
+    if (!row) { res.status(404).json({ error: '工单不存在' }); return }
+    if (row.status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
 
-    // 推送通知（Server酱/Bark）
     sendPush(payload).catch(e => console.warn('[Push]', e))
-
-    // 微信订阅消息：用随单携带的 code 立即换 openid 发通知，一次性不存储
     if (payload.subscribeCode) {
-      sendSubscribeMsgByCode(payload.subscribeCode, payload, _sessions[idx].name)
-        .catch(e => console.warn('[Subscribe]', e))
+      sendSubscribeMsgByCode(payload.subscribeCode, payload, row.name).catch(e => console.warn('[Subscribe]', e))
     }
 
-    const existing = _sessions[idx].items
-    payload.items.forEach(sub => {
-      const found = existing.find(i => i.dish.id === sub.dish.id)
-      if (found) found.submittedQty = (found.submittedQty ?? 0) + sub.quantity
-      else existing.push({ ...sub, submittedQty: sub.quantity })
-    })
-    _sessions[idx].updatedAt = new Date().toISOString()
-    _saveSessions()
-    cosPut(SESSIONS_KEY, _sessions).catch(e => console.warn('[COS] order 备份失败:', e.message))
+    const now = new Date().toISOString()
+    db.transaction(() => {
+      for (const sub of payload.items) {
+        const devId = sub.deviceId || ''
+        const existing = db.prepare('SELECT submitted_qty FROM cart_items WHERE session_id=? AND device_id=? AND dish_id=?').get(req.params.sid, devId, sub.dish.id) as any
+        if (existing) {
+          db.prepare('UPDATE cart_items SET submitted_qty=submitted_qty+?, updated_at=? WHERE session_id=? AND device_id=? AND dish_id=?').run(sub.quantity, now, req.params.sid, devId, sub.dish.id)
+        } else {
+          upsertDish(sub.dish)
+          db.prepare('INSERT INTO cart_items (session_id,device_id,dish_id,quantity,submitted_qty,preferences,updated_at) VALUES (?,?,?,?,?,?,?)').run(req.params.sid, devId, sub.dish.id, sub.quantity, sub.quantity, JSON.stringify(sub.preferences || []), now)
+        }
+      }
+      db.prepare('UPDATE sessions SET updated_at=? WHERE id=?').run(now, req.params.sid)
+    })()
+
     console.log(`[order] 提交成功 sid=${req.params.sid} items=${payload.items.length}`)
     res.json({ ok: true })
   } catch (e) { console.error('[POST order]', e); res.status(500).json({ error: '服务器错误' }) }
@@ -392,13 +446,11 @@ app.post('/session/:sid/order', async (req, res) => {
 // PUT /session/:sid/close
 app.put('/session/:sid/close', (req, res) => {
   try {
-    const idx = sessionIndex(req.params.sid)
-    if (idx === -1) { res.status(404).json({ error: '工单不存在' }); return }
-    if (_sessions[idx].status === 'closed') { res.json({ ok: true, note: '工单已是关闭状态' }); return }
-    _sessions[idx].status    = 'closed'
-    _sessions[idx].updatedAt = new Date().toISOString()
-    _saveSessions()
-    cosPut(SESSIONS_KEY, _sessions).catch(e => console.warn('[COS] close 备份失败:', e.message))
+    const row = db.prepare('SELECT status FROM sessions WHERE id = ?').get(req.params.sid) as any
+    if (!row) { res.status(404).json({ error: '工单不存在' }); return }
+    if (row.status === 'closed') { res.json({ ok: true, note: '工单已是关闭状态' }); return }
+    const now = new Date().toISOString()
+    db.prepare("UPDATE sessions SET status='closed', updated_at=? WHERE id=?").run(now, req.params.sid)
     console.log(`[close] 关闭 sid=${req.params.sid}`)
     res.json({ ok: true })
   } catch (e) { console.error('[PUT close]', e); res.status(500).json({ error: '服务器错误' }) }
@@ -407,10 +459,10 @@ app.put('/session/:sid/close', (req, res) => {
 // DELETE /session/:sid
 app.delete('/session/:sid', (req, res) => {
   try {
-    const before = _sessions.length
-    _sessions = _sessions.filter(s => s.id !== req.params.sid)
-    if (_sessions.length === before) { res.status(404).json({ error: '工单不存在' }); return }
-    _persist()
+    const info = db.prepare('DELETE FROM sessions WHERE id = ?').run(req.params.sid)
+    if (info.changes === 0) { res.status(404).json({ error: '工单不存在' }); return }
+    db.prepare('DELETE FROM participants WHERE session_id=?').run(req.params.sid)
+    db.prepare('DELETE FROM cart_items WHERE session_id=?').run(req.params.sid)
     console.log(`[session] 删除 sid=${req.params.sid}`)
     res.json({ ok: true })
   } catch (e) { console.error('[DELETE session]', e); res.status(500).json({ error: '服务器错误' }) }
@@ -419,13 +471,14 @@ app.delete('/session/:sid', (req, res) => {
 // GET /sessions — 所有工单列表（管理后台用）
 app.get('/sessions', (_req, res) => {
   try {
-    res.json([..._sessions].sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
+    const rows = db.prepare('SELECT * FROM sessions ORDER BY created_at DESC').all() as any[]
+    res.json(rows.map(r => buildFullSession(r.id)).filter(Boolean))
   } catch (e) { console.error('[GET sessions]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // GET /dishes
 app.get('/dishes', (_req, res) => {
-  try { res.json(_dishes) }
+  try { res.json(getAllDishes()) }
   catch (e) { console.error('[GET dishes]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
@@ -440,56 +493,67 @@ app.post('/dishes', (req, res) => {
       available: available !== false, price: Number(price) || 0,
       createdAt: new Date().toISOString(),
     }
-    _dishes.push(dish)
-    _persistDishes()
+    upsertDish(dish)
     console.log(`[dishes] 新增: ${dish.id} name=${dish.name}`)
     res.json(dish)
   } catch (e) { console.error('[POST dishes]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
+// POST /dishes/image — 上传菜品图片到 COS
+app.post('/dishes/image', async (req, res) => {
+  try {
+    const { base64, mimeType } = req.body
+    if (!base64) { res.status(400).json({ error: '缺少 base64' }); return }
+    if (!SECRET_ID || !BUCKET) { res.status(503).json({ error: 'COS 未配置' }); return }
+    const buf = Buffer.from(base64 as string, 'base64')
+    if (buf.length > 5_000_000) { res.status(413).json({ error: '图片过大（最大 5MB）' }); return }
+    const ext = mimeType === 'image/png' ? 'png' : 'jpg'
+    const key = `kitchen/dishes/${Date.now()}.${ext}`
+    const url = await cosUploadImage(key, buf, mimeType || 'image/jpeg')
+    console.log(`[image] 上传 COS: ${key}`)
+    res.json({ ok: true, url })
+  } catch (e: any) { console.error('[POST dishes/image]', e); res.status(500).json({ error: e.message || '上传失败' }) }
+})
+
 // PUT /dish/:id — 更新菜品
 app.put('/dish/:id', (req, res) => {
   try {
-    const idx = _dishes.findIndex(d => d.id === req.params.id)
-    if (idx === -1) { res.status(404).json({ error: '菜品不存在' }); return }
+    const row = db.prepare('SELECT * FROM dishes WHERE id=? AND is_custom=0').get(req.params.id) as any
+    if (!row) { res.status(404).json({ error: '菜品不存在' }); return }
+    const current = rowToDish(row)
     const { name, category, description, imageUrl, available, price } = req.body
-    _dishes[idx] = {
-      ..._dishes[idx],
-      ...(name !== undefined       ? { name: name.trim() } : {}),
-      ...(category !== undefined   ? { category } : {}),
-      ...(description !== undefined? { description } : {}),
-      ...(imageUrl !== undefined   ? { imageUrl } : {}),
-      ...(available !== undefined  ? { available } : {}),
-      ...(price !== undefined      ? { price: Number(price) } : {}),
-    }
-    _persistDishes()
-    res.json(_dishes[idx])
+    db.prepare('UPDATE dishes SET name=?,category=?,description=?,image_url=?,available=?,price=? WHERE id=?').run(
+      name       !== undefined ? name.trim()     : current.name,
+      category   !== undefined ? category        : current.category,
+      description!== undefined ? description     : current.description,
+      imageUrl   !== undefined ? imageUrl        : current.imageUrl,
+      available  !== undefined ? (available ? 1 : 0) : (current.available ? 1 : 0),
+      price      !== undefined ? Number(price)   : current.price,
+      req.params.id
+    )
+    res.json(rowToDish(db.prepare('SELECT * FROM dishes WHERE id=?').get(req.params.id) as any))
   } catch (e) { console.error('[PUT dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // PUT /dish/:id/toggle — 切换供应状态
 app.put('/dish/:id/toggle', (req, res) => {
   try {
-    const idx = _dishes.findIndex(d => d.id === req.params.id)
-    if (idx === -1) { res.status(404).json({ error: '菜品不存在' }); return }
-    _dishes[idx].available = !_dishes[idx].available
-    _persistDishes()
-    res.json(_dishes[idx])
+    const row = db.prepare('SELECT * FROM dishes WHERE id=? AND is_custom=0').get(req.params.id) as any
+    if (!row) { res.status(404).json({ error: '菜品不存在' }); return }
+    db.prepare('UPDATE dishes SET available=1-available WHERE id=?').run(req.params.id)
+    res.json(rowToDish(db.prepare('SELECT * FROM dishes WHERE id=?').get(req.params.id) as any))
   } catch (e) { console.error('[PUT dish/toggle]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // DELETE /dish/:id — 删除菜品
 app.delete('/dish/:id', (req, res) => {
   try {
-    const before = _dishes.length
-    _dishes = _dishes.filter(d => d.id !== req.params.id)
-    if (_dishes.length === before) { res.status(404).json({ error: '菜品不存在' }); return }
-    _persistDishes()
+    const info = db.prepare('DELETE FROM dishes WHERE id=? AND is_custom=0').run(req.params.id)
+    if (info.changes === 0) { res.status(404).json({ error: '菜品不存在' }); return }
     res.json({ ok: true })
   } catch (e) { console.error('[DELETE dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // ── 启动 ──────────────────────────────────────────────────────────────────────
-initData().then(() => {
-  app.listen(PORT, () => console.log(`[kitchen-api] 就绪，监听 :${PORT}`))
-})
+migrateIfNeeded()
+app.listen(PORT, () => console.log(`[kitchen-api] SQLite 就绪，监听 :${PORT}`))
