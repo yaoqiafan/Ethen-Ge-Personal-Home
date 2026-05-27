@@ -14,13 +14,15 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "serverchan-sdk": "^1.0.4",
-    "undici": "^6.21.0"
+    "undici": "^6.21.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.13",
     "tsx": "^4.15.0"
   }
 }

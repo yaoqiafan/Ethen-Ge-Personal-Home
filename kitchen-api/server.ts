@@ -1,7 +1,9 @@
 import 'dotenv/config'
 import { createHmac, createHash } from 'crypto'
 import { request as httpsRequest } from 'https'
+import { createServer } from 'http'
 import { Agent, setGlobalDispatcher } from 'undici'
+import { WebSocketServer, WebSocket as WS } from 'ws'
 import express from 'express'
 import cors from 'cors'
 import { scSend } from 'serverchan-sdk'
@@ -455,8 +457,50 @@ async function sendPush(payload: OrderPayload): Promise<void> {
   }
 }
 
-// ── Express ──────────────────────────────────────────────────────────────────
-const app = express()
+// ── Express + HTTP Server + WebSocket ────────────────────────────────────────
+const app        = express()
+const httpServer = createServer(app)
+
+// WebSocket 服务：路径 /ws，用于实时购物车推送
+// 取代客户端 1.5s HTTP 轮询，服务端写入后主动推送，延迟从 ~750ms 降至 ~50ms
+const wss = new WebSocketServer({ server: httpServer, path: '/ws' })
+
+// 工单房间：sid → 已连接 WebSocket 集合
+const wsRooms = new Map<string, Set<WS>>()
+
+wss.on('connection', (ws, req) => {
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  const sid = url.searchParams.get('sid') ?? ''
+  if (!sid) { ws.close(1008, 'missing sid'); return }
+
+  if (!wsRooms.has(sid)) wsRooms.set(sid, new Set())
+  wsRooms.get(sid)!.add(ws)
+  console.log(`[ws] +连接 sid=${sid} 在线=${wsRooms.get(sid)!.size}`)
+
+  ws.on('close', () => {
+    wsRooms.get(sid)?.delete(ws)
+    if (wsRooms.get(sid)?.size === 0) wsRooms.delete(sid)
+    console.log(`[ws] -断开 sid=${sid}`)
+  })
+  ws.on('error', () => {}) // 防止未捕获异常崩溃进程
+})
+
+/** 写入购物车后广播最新状态给同一工单的所有在线设备 */
+function broadcastCart(sid: string): void {
+  const sockets = wsRooms.get(sid)
+  if (!sockets?.size) return
+  try {
+    const items = buildSessionItems(sid)
+    const { infos } = buildParticipants(sid)
+    const participantCount = (stmts.countParticipants.get(sid) as any)?.c ?? 0
+    const msg = JSON.stringify({ type: 'cart', items, participantCount, participantInfos: infos })
+    sockets.forEach(ws => {
+      if (ws.readyState === WS.OPEN) try { ws.send(msg) } catch {}
+    })
+    console.log(`[ws] 广播 sid=${sid} 设备=${sockets.size} items=${items.length}`)
+  } catch (e) { console.warn('[ws] broadcastCart 失败:', e) }
+}
+
 app.use(cors())
 app.use(express.json({ limit: '5mb' }))
 
@@ -619,6 +663,8 @@ app.put('/session/:sid/cart', (req, res) => {
 
     const participantCount = (stmts.countParticipants.get(req.params.sid) as any).c
     res.json({ ok: true, participantCount })
+    // 写入完成后广播给同一工单的所有在线设备（在响应发出之后执行，不阻塞本请求）
+    broadcastCart(req.params.sid)
   } catch (e) { console.error('[PUT cart]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
@@ -760,4 +806,4 @@ app.delete('/dish/:id', requireAdmin, (req, res) => {
 
 // ── 启动 ──────────────────────────────────────────────────────────────────────
 migrateIfNeeded()
-app.listen(PORT, () => console.log(`[kitchen-api] SQLite 就绪，监听 :${PORT}`))
+httpServer.listen(PORT, () => console.log(`[kitchen-api] SQLite 就绪，监听 :${PORT}（HTTP + WebSocket /ws）`))
