@@ -132,13 +132,43 @@ db.exec(`
 `)
 
 // ── 预编译高频 SQL ────────────────────────────────────────────────────────────
-// 在热路径（每 1.5s 轮询）上避免重复 parse，提升吞吐
+// 统一放这里，避免任何路由内 db.prepare()（每次请求都重新 parse 的性能问题）
 const stmts = {
-  getAllDishes:    db.prepare('SELECT * FROM dishes WHERE is_custom = 0 ORDER BY created_at'),
-  getSession:     db.prepare('SELECT * FROM sessions WHERE id = ?'),
+  // ── 菜品 ────────────────────────────────────────────────────────────────────
+  getAllDishes: db.prepare('SELECT * FROM dishes WHERE is_custom = 0 ORDER BY created_at'),
+  getDishById:  db.prepare('SELECT * FROM dishes WHERE id = ?'),
+  // 只查非自定义菜（管理员编辑/删除时用）
+  getDishAdmin: db.prepare('SELECT * FROM dishes WHERE id = ? AND is_custom = 0'),
+  // 新增/更新菜品（ON CONFLICT 覆写除 is_custom/created_at 外的字段）
+  upsertDish: db.prepare(`
+    INSERT INTO dishes (id,name,category,description,image_url,available,price,is_custom,created_at)
+    VALUES (@id,@name,@category,@description,@imageUrl,@available,@price,@isCustom,@createdAt)
+    ON CONFLICT(id) DO UPDATE SET
+      name=excluded.name, category=excluded.category, description=excluded.description,
+      image_url=excluded.image_url, available=excluded.available, price=excluded.price
+  `),
+  updateDishFields: db.prepare(
+    'UPDATE dishes SET name=?,category=?,description=?,image_url=?,available=?,price=? WHERE id=?'
+  ),
+  toggleDishAvail: db.prepare('UPDATE dishes SET available=1-available WHERE id=?'),
+  // 只删非自定义菜，保护自定义菜（is_custom=1 由工单数据写入，不允许管理员从此接口删除）
+  deleteDishAdmin:      db.prepare('DELETE FROM dishes WHERE id=? AND is_custom=0'),
+  // 删菜时同步清理引用该菜的购物车条目（避免 JOIN 静默丢失，产生脏数据）
+  deleteCartByDishId:   db.prepare('DELETE FROM cart_items WHERE dish_id=?'),
+
+  // ── 工单 ────────────────────────────────────────────────────────────────────
+  getSession: db.prepare('SELECT * FROM sessions WHERE id = ?'),
   getActiveSession: db.prepare(
     "SELECT * FROM sessions WHERE status='active' ORDER BY created_at DESC LIMIT 1"
   ),
+  getAllSessions: db.prepare('SELECT * FROM sessions ORDER BY created_at DESC'),
+  insertSession:  db.prepare(
+    'INSERT INTO sessions (id,name,status,created_at,updated_at) VALUES (?,?,?,?,?)'
+  ),
+  closeSession:   db.prepare("UPDATE sessions SET status='closed', updated_at=? WHERE id=?"),
+  deleteSession:  db.prepare('DELETE FROM sessions WHERE id=?'),
+
+  // ── 购物车 ──────────────────────────────────────────────────────────────────
   // JOIN 一次取购物车 + 菜品全字段，消除 N+1 getDish() 查询
   getCartItemsWithDish: db.prepare(`
     SELECT
@@ -152,19 +182,33 @@ const stmts = {
     JOIN dishes d ON d.id = ci.dish_id
     WHERE ci.session_id = ?
   `),
-  getParticipants:         db.prepare('SELECT * FROM participants WHERE session_id = ?'),
-  countParticipants:       db.prepare('SELECT COUNT(*) AS c FROM participants WHERE session_id = ?'),
-  upsertParticipant:       db.prepare(
+  deleteCartByDevice:   db.prepare('DELETE FROM cart_items WHERE session_id=? AND device_id=?'),
+  deleteCartBySession:  db.prepare('DELETE FROM cart_items WHERE session_id=?'),
+  insertCartItem: db.prepare(
+    'INSERT INTO cart_items (session_id,device_id,dish_id,quantity,submitted_qty,preferences,updated_at) VALUES (?,?,?,?,?,?,?)'
+  ),
+  // 点单时检查购物车行是否存在
+  checkCartItem: db.prepare(
+    'SELECT 1 FROM cart_items WHERE session_id=? AND device_id=? AND dish_id=?'
+  ),
+  // 点单时更新已提交数量（直接覆写，不累加，避免重复提交溢出）
+  updateSubmittedQty: db.prepare(
+    'UPDATE cart_items SET submitted_qty=?, updated_at=? WHERE session_id=? AND device_id=? AND dish_id=?'
+  ),
+
+  // ── 参与者 ──────────────────────────────────────────────────────────────────
+  getParticipants:  db.prepare('SELECT * FROM participants WHERE session_id = ?'),
+  countParticipants: db.prepare('SELECT COUNT(*) AS c FROM participants WHERE session_id = ?'),
+  upsertParticipant: db.prepare(
     'INSERT OR REPLACE INTO participants (session_id,device_id,avatar_url,nick_name,updated_at) VALUES (?,?,?,?,?)'
   ),
   insertIgnoreParticipant: db.prepare(
     'INSERT OR IGNORE INTO participants (session_id,device_id,avatar_url,nick_name,updated_at) VALUES (?,?,?,?,?)'
   ),
-  deleteCartByDevice:      db.prepare('DELETE FROM cart_items WHERE session_id=? AND device_id=?'),
-  insertCartItem:          db.prepare(
-    'INSERT INTO cart_items (session_id,device_id,dish_id,quantity,submitted_qty,preferences,updated_at) VALUES (?,?,?,?,?,?,?)'
-  ),
-  updateSessionTime:       db.prepare('UPDATE sessions SET updated_at=? WHERE id=?'),
+  deleteParticipantsBySession: db.prepare('DELETE FROM participants WHERE session_id=?'),
+
+  // ── 其他 ────────────────────────────────────────────────────────────────────
+  updateSessionTime: db.prepare('UPDATE sessions SET updated_at=? WHERE id=?'),
 }
 
 // ── 数据层辅助函数 ────────────────────────────────────────────────────────────
@@ -183,14 +227,20 @@ function getAllDishes(): Dish[] {
   return (stmts.getAllDishes.all() as any[]).map(rowToDish)
 }
 
-function upsertDish(dish: Dish): void {
-  db.prepare(`
-    INSERT INTO dishes (id,name,category,description,image_url,available,price,is_custom,created_at)
-    VALUES (@id,@name,@category,@description,@imageUrl,@available,@price,@isCustom,@createdAt)
-    ON CONFLICT(id) DO UPDATE SET
-      name=excluded.name, category=excluded.category, description=excluded.description,
-      image_url=excluded.image_url, available=excluded.available, price=excluded.price
-  `).run({
+/** 仅用于写入自定义菜品（isCustom=1），标准菜品由管理员接口维护，不可被客户端覆写 */
+function upsertCustomDish(dish: Dish): void {
+  stmts.upsertDish.run({
+    id: dish.id, name: dish.name, category: dish.category,
+    description: dish.description || '', imageUrl: dish.imageUrl || '',
+    available: dish.available ? 1 : 0, price: dish.price || 0,
+    isCustom: 1,   // 强制标记为自定义，防止客户端伪造标准菜品 ID 覆写服务端数据
+    createdAt: dish.createdAt,
+  })
+}
+
+/** 迁移时使用，可写入任意菜品（包括标准菜） */
+function upsertDishRaw(dish: Dish): void {
+  stmts.upsertDish.run({
     id: dish.id, name: dish.name, category: dish.category,
     description: dish.description || '', imageUrl: dish.imageUrl || '',
     available: dish.available ? 1 : 0, price: dish.price || 0,
@@ -228,8 +278,9 @@ function buildParticipants(sessionId: string): { ids: string[]; infos: Participa
   }
 }
 
-function buildFullSession(sessionId: string): OrderSession | undefined {
-  const row = stmts.getSession.get(sessionId) as any
+// prefetchedRow：热路径（每 1.5s 轮询）已查过一次，直接传入避免重复 SELECT
+function buildFullSession(sessionId: string, prefetchedRow?: any): OrderSession | undefined {
+  const row = prefetchedRow ?? (stmts.getSession.get(sessionId) as any)
   if (!row) return undefined
   const { ids, infos } = buildParticipants(sessionId)
   return {
@@ -255,7 +306,7 @@ function migrateIfNeeded(): void {
     if (existsSync(DISHES_FILE)) {
       try {
         const dishes: Dish[] = JSON.parse(readFileSync(DISHES_FILE, 'utf8'))
-        for (const d of dishes) upsertDish(d)
+        for (const d of dishes) upsertDishRaw(d)
         console.log(`[migrate] 菜品: ${dishes.length} 条`)
       } catch (e) { console.warn('[migrate] dishes 失败:', e) }
     }
@@ -271,7 +322,7 @@ function migrateIfNeeded(): void {
           }
           const now = new Date().toISOString()
           for (const item of s.items ?? []) {
-            upsertDish(item.dish)
+            upsertDishRaw(item.dish)
             stmts.insertCartItem.run(
               s.id, item.deviceId || '', item.dish.id,
               item.quantity, item.submittedQty || 0,
@@ -433,8 +484,7 @@ app.post('/sessions', requireAdmin, (req, res) => {
     if (!name) { res.status(400).json({ error: '缺少工单名称' }); return }
     const now = new Date().toISOString()
     const id  = `s${Date.now()}`
-    db.prepare('INSERT INTO sessions (id,name,status,created_at,updated_at) VALUES (?,?,?,?,?)')
-      .run(id, name, 'active', now, now)
+    stmts.insertSession.run(id, name, 'active', now, now)
     console.log(`[sessions] 创建: ${id} name=${name}`)
     res.json({ id, name, status: 'active', items: [], createdAt: now, updatedAt: now })
   } catch (e) { console.error('[POST sessions]', e); res.status(500).json({ error: '服务器错误' }) }
@@ -453,7 +503,8 @@ app.get('/session/:sid', (req, res) => {
   try {
     const row = stmts.getSession.get(req.params.sid) as any
     if (!row || row.status === 'closed') { res.json({ valid: false }); return }
-    const session = buildFullSession(req.params.sid)!
+    // 传入已取的 row，避免 buildFullSession 内部再次 SELECT（热路径每 1.5s × N 台设备）
+    const session = buildFullSession(req.params.sid, row)!
     const reqDevId = req.query.deviceId as string | undefined
     const isAdmin  = !!ADMIN_DEVICE_ID && !!reqDevId && reqDevId === ADMIN_DEVICE_ID
     res.json({
@@ -473,7 +524,7 @@ app.put('/session/:sid/close', requireAdmin, (req, res) => {
     if (!row) { res.status(404).json({ error: '工单不存在' }); return }
     if (row.status === 'closed') { res.json({ ok: true, note: '工单已是关闭状态' }); return }
     const now = new Date().toISOString()
-    db.prepare("UPDATE sessions SET status='closed', updated_at=? WHERE id=?").run(now, req.params.sid)
+    stmts.closeSession.run(now, req.params.sid)
     console.log(`[close] 关闭 sid=${req.params.sid}`)
     res.json({ ok: true })
   } catch (e) { console.error('[PUT close]', e); res.status(500).json({ error: '服务器错误' }) }
@@ -482,10 +533,15 @@ app.put('/session/:sid/close', requireAdmin, (req, res) => {
 // DELETE /session/:sid（仅管理员）
 app.delete('/session/:sid', requireAdmin, (req, res) => {
   try {
-    const info = db.prepare('DELETE FROM sessions WHERE id = ?').run(req.params.sid)
-    if (info.changes === 0) { res.status(404).json({ error: '工单不存在' }); return }
-    db.prepare('DELETE FROM participants WHERE session_id=?').run(req.params.sid)
-    db.prepare('DELETE FROM cart_items WHERE session_id=?').run(req.params.sid)
+    // 三张表必须原子删除；先检查存在性再开事务，避免事务内抛出被 better-sqlite3 回滚后难以区分 404/500
+    if (!stmts.getSession.get(req.params.sid)) {
+      res.status(404).json({ error: '工单不存在' }); return
+    }
+    db.transaction(() => {
+      stmts.deleteSession.run(req.params.sid)
+      stmts.deleteParticipantsBySession.run(req.params.sid)
+      stmts.deleteCartBySession.run(req.params.sid)
+    })()
     console.log(`[session] 删除 sid=${req.params.sid}`)
     res.json({ ok: true })
   } catch (e) { console.error('[DELETE session]', e); res.status(500).json({ error: '服务器错误' }) }
@@ -494,8 +550,8 @@ app.delete('/session/:sid', requireAdmin, (req, res) => {
 // GET /sessions — 所有工单列表（仅管理员）
 app.get('/sessions', requireAdmin, (_req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM sessions ORDER BY created_at DESC').all() as any[]
-    res.json(rows.map(r => buildFullSession(r.id)).filter(Boolean))
+    const rows = stmts.getAllSessions.all() as any[]
+    res.json(rows.map(r => buildFullSession(r.id, r)).filter(Boolean))
   } catch (e) { console.error('[GET sessions]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
@@ -548,7 +604,8 @@ app.put('/session/:sid/cart', (req, res) => {
     db.transaction(() => {
       stmts.deleteCartByDevice.run(req.params.sid, deviceId)
       for (const item of items) {
-        upsertDish(item.dish)   // 自定义菜（isCustom=1）也写入 dishes，getAllDishes() 会过滤掉
+        // 只写入自定义菜；标准菜由管理员维护，不允许客户端数据覆写服务端字段（价格/名称等）
+        if (item.dish.isCustom) upsertCustomDish(item.dish)
         stmts.insertCartItem.run(
           req.params.sid, deviceId, item.dish.id,
           item.quantity, item.submittedQty || 0,
@@ -587,17 +644,14 @@ app.post('/session/:sid/order', async (req, res) => {
     db.transaction(() => {
       for (const sub of payload.items) {
         const devId = sub.deviceId || ''
-        const existing = db.prepare(
-          'SELECT 1 FROM cart_items WHERE session_id=? AND device_id=? AND dish_id=?'
-        ).get(req.params.sid, devId, sub.dish.id)
+        const existing = stmts.checkCartItem.get(req.params.sid, devId, sub.dish.id)
 
         if (existing) {
-          // 修复：直接覆写为当前 quantity，避免多次追加提交导致 submitted_qty 累加溢出
-          db.prepare(
-            'UPDATE cart_items SET submitted_qty=?, updated_at=? WHERE session_id=? AND device_id=? AND dish_id=?'
-          ).run(sub.quantity, now, req.params.sid, devId, sub.dish.id)
+          // 直接覆写为当前 quantity，不累加，避免多次提交导致 submitted_qty 溢出
+          stmts.updateSubmittedQty.run(sub.quantity, now, req.params.sid, devId, sub.dish.id)
         } else {
-          upsertDish(sub.dish)
+          // 仅自定义菜需写入 dishes 表；标准菜不允许客户端数据覆写
+          if (sub.dish.isCustom) upsertCustomDish(sub.dish)
           stmts.insertCartItem.run(
             req.params.sid, devId, sub.dish.id,
             sub.quantity, sub.quantity,
@@ -660,40 +714,46 @@ app.post('/dishes/image', requireAdmin, async (req, res) => {
 // PUT /dish/:id — 更新菜品字段（仅管理员）
 app.put('/dish/:id', requireAdmin, (req, res) => {
   try {
-    const row = db.prepare('SELECT * FROM dishes WHERE id=? AND is_custom=0').get(req.params.id) as any
+    const row = stmts.getDishAdmin.get(req.params.id) as any
     if (!row) { res.status(404).json({ error: '菜品不存在' }); return }
     const cur = rowToDish(row)
     const { name, category, description, imageUrl, available, price } = req.body
-    db.prepare(
-      'UPDATE dishes SET name=?,category=?,description=?,image_url=?,available=?,price=? WHERE id=?'
-    ).run(
-      name        !== undefined ? String(name).trim()      : cur.name,
-      category    !== undefined ? category                 : cur.category,
-      description !== undefined ? description              : cur.description,
-      imageUrl    !== undefined ? imageUrl                 : cur.imageUrl,
-      available   !== undefined ? (available ? 1 : 0)     : (cur.available ? 1 : 0),
-      price       !== undefined ? Number(price)            : cur.price,
+    stmts.updateDishFields.run(
+      name        !== undefined ? String(name).trim()  : cur.name,
+      category    !== undefined ? category             : cur.category,
+      description !== undefined ? description          : cur.description,
+      imageUrl    !== undefined ? imageUrl             : cur.imageUrl,
+      available   !== undefined ? (available ? 1 : 0) : (cur.available ? 1 : 0),
+      price       !== undefined ? Number(price)        : cur.price,
       req.params.id,
     )
-    res.json(rowToDish(db.prepare('SELECT * FROM dishes WHERE id=?').get(req.params.id) as any))
+    res.json(rowToDish(stmts.getDishById.get(req.params.id) as any))
   } catch (e) { console.error('[PUT dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // PUT /dish/:id/toggle — 切换供应状态（仅管理员）
 app.put('/dish/:id/toggle', requireAdmin, (req, res) => {
   try {
-    const row = db.prepare('SELECT * FROM dishes WHERE id=? AND is_custom=0').get(req.params.id) as any
+    const row = stmts.getDishAdmin.get(req.params.id) as any
     if (!row) { res.status(404).json({ error: '菜品不存在' }); return }
-    db.prepare('UPDATE dishes SET available=1-available WHERE id=?').run(req.params.id)
-    res.json(rowToDish(db.prepare('SELECT * FROM dishes WHERE id=?').get(req.params.id) as any))
+    stmts.toggleDishAvail.run(req.params.id)
+    res.json(rowToDish(stmts.getDishById.get(req.params.id) as any))
   } catch (e) { console.error('[PUT dish/toggle]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
 // DELETE /dish/:id — 删除菜品（仅管理员）
 app.delete('/dish/:id', requireAdmin, (req, res) => {
   try {
-    const info = db.prepare('DELETE FROM dishes WHERE id=? AND is_custom=0').run(req.params.id)
-    if (info.changes === 0) { res.status(404).json({ error: '菜品不存在' }); return }
+    // 原子操作：先删菜品，再清理各工单购物车里引用该菜的 cart_items
+    // 不包进事务外层判断，先检查存在性
+    if (!stmts.getDishAdmin.get(req.params.id)) {
+      res.status(404).json({ error: '菜品不存在' }); return
+    }
+    db.transaction(() => {
+      stmts.deleteDishAdmin.run(req.params.id)
+      // 清理所有工单中引用该菜的购物车条目，防止 JOIN 查询静默丢失产生脏数据
+      stmts.deleteCartByDishId.run(req.params.id)
+    })()
     res.json({ ok: true })
   } catch (e) { console.error('[DELETE dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
