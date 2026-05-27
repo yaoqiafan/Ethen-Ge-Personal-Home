@@ -49,7 +49,8 @@ const REGION     = process.env.COS_REGION               || ''
 const PUSH_KEY   = process.env.PUSH_KEY                 || ''
 const WX_APP_ID  = process.env.WX_APP_ID                || ''
 const WX_SECRET  = process.env.WX_APP_SECRET            || ''
-const WX_TMPL_ID = process.env.WX_SUBSCRIBE_TEMPLATE_ID || ''
+const WX_TMPL_ID     = process.env.WX_SUBSCRIBE_TEMPLATE_ID || ''
+const ADMIN_DEVICE_ID = process.env.ADMIN_DEVICE_ID          || ''  // 管理员设备 ID（.env 中设置）
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
 type DishCategory = '荤菜' | '素菜' | '汤羹' | '主食' | '小吃'
@@ -410,10 +411,23 @@ app.use(express.json({ limit: '5mb' }))
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
+// ── 管理员鉴权中间件 ─────────────────────────────────────────────────────────
+// 请求需携带 X-Device-Id 头，与服务器 .env ADMIN_DEVICE_ID 一致才放行
+// 未配置 ADMIN_DEVICE_ID 时跳过鉴权（开发/自测模式）
+const requireAdmin: express.RequestHandler = (req, res, next) => {
+  if (!ADMIN_DEVICE_ID) { next(); return }
+  const deviceId = req.headers['x-device-id'] as string | undefined
+  if (!deviceId || deviceId !== ADMIN_DEVICE_ID) {
+    res.status(403).json({ error: '无权限，请联系管理员' })
+    return
+  }
+  next()
+}
+
 // ── 工单 ──────────────────────────────────────────────────────────────────────
 
-// POST /sessions — 创建工单
-app.post('/sessions', (req, res) => {
+// POST /sessions — 创建工单（仅管理员）
+app.post('/sessions', requireAdmin, (req, res) => {
   try {
     const name: string = req.body?.name?.trim()
     if (!name) { res.status(400).json({ error: '缺少工单名称' }); return }
@@ -440,17 +454,20 @@ app.get('/session/:sid', (req, res) => {
     const row = stmts.getSession.get(req.params.sid) as any
     if (!row || row.status === 'closed') { res.json({ valid: false }); return }
     const session = buildFullSession(req.params.sid)!
+    const reqDevId = req.query.deviceId as string | undefined
+    const isAdmin  = !!ADMIN_DEVICE_ID && !!reqDevId && reqDevId === ADMIN_DEVICE_ID
     res.json({
       valid: true, session,
       dishes:           getAllDishes(),
       participantCount: session.participants?.length ?? 0,
       participantInfos: session.participantInfos ?? [],
+      isAdmin,
     })
   } catch (e) { console.error('[GET session]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// PUT /session/:sid/close
-app.put('/session/:sid/close', (req, res) => {
+// PUT /session/:sid/close（仅管理员）
+app.put('/session/:sid/close', requireAdmin, (req, res) => {
   try {
     const row = stmts.getSession.get(req.params.sid) as any
     if (!row) { res.status(404).json({ error: '工单不存在' }); return }
@@ -462,8 +479,8 @@ app.put('/session/:sid/close', (req, res) => {
   } catch (e) { console.error('[PUT close]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// DELETE /session/:sid
-app.delete('/session/:sid', (req, res) => {
+// DELETE /session/:sid（仅管理员）
+app.delete('/session/:sid', requireAdmin, (req, res) => {
   try {
     const info = db.prepare('DELETE FROM sessions WHERE id = ?').run(req.params.sid)
     if (info.changes === 0) { res.status(404).json({ error: '工单不存在' }); return }
@@ -474,8 +491,8 @@ app.delete('/session/:sid', (req, res) => {
   } catch (e) { console.error('[DELETE session]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// GET /sessions — 所有工单列表（管理后台用）
-app.get('/sessions', (_req, res) => {
+// GET /sessions — 所有工单列表（仅管理员）
+app.get('/sessions', requireAdmin, (_req, res) => {
   try {
     const rows = db.prepare('SELECT * FROM sessions ORDER BY created_at DESC').all() as any[]
     res.json(rows.map(r => buildFullSession(r.id)).filter(Boolean))
@@ -598,14 +615,14 @@ app.post('/session/:sid/order', async (req, res) => {
 
 // ── 菜品管理 ──────────────────────────────────────────────────────────────────
 
-// GET /dishes
-app.get('/dishes', (_req, res) => {
+// GET /dishes（仅管理员；普通用户通过 GET /session/:sid 获取菜单）
+app.get('/dishes', requireAdmin, (_req, res) => {
   try { res.json(getAllDishes()) }
   catch (e) { console.error('[GET dishes]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /dishes — 新增菜品
-app.post('/dishes', (req, res) => {
+// POST /dishes — 新增菜品（仅管理员）
+app.post('/dishes', requireAdmin, (req, res) => {
   try {
     const { name, category, description, imageUrl, available, price } = req.body
     if (!name?.trim()) { res.status(400).json({ error: '缺少菜品名称' }); return }
@@ -621,8 +638,8 @@ app.post('/dishes', (req, res) => {
   } catch (e) { console.error('[POST dishes]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// POST /dishes/image — 上传菜品图片到 COS（key: kitchen/dishes/<timestamp>.<ext>）
-app.post('/dishes/image', async (req, res) => {
+// POST /dishes/image — 上传菜品图片到 COS（仅管理员）
+app.post('/dishes/image', requireAdmin, async (req, res) => {
   try {
     const { base64, mimeType } = req.body
     if (!base64) { res.status(400).json({ error: '缺少 base64' }); return }
@@ -640,8 +657,8 @@ app.post('/dishes/image', async (req, res) => {
   }
 })
 
-// PUT /dish/:id — 更新菜品字段
-app.put('/dish/:id', (req, res) => {
+// PUT /dish/:id — 更新菜品字段（仅管理员）
+app.put('/dish/:id', requireAdmin, (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM dishes WHERE id=? AND is_custom=0').get(req.params.id) as any
     if (!row) { res.status(404).json({ error: '菜品不存在' }); return }
@@ -662,8 +679,8 @@ app.put('/dish/:id', (req, res) => {
   } catch (e) { console.error('[PUT dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// PUT /dish/:id/toggle — 切换供应状态
-app.put('/dish/:id/toggle', (req, res) => {
+// PUT /dish/:id/toggle — 切换供应状态（仅管理员）
+app.put('/dish/:id/toggle', requireAdmin, (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM dishes WHERE id=? AND is_custom=0').get(req.params.id) as any
     if (!row) { res.status(404).json({ error: '菜品不存在' }); return }
@@ -672,8 +689,8 @@ app.put('/dish/:id/toggle', (req, res) => {
   } catch (e) { console.error('[PUT dish/toggle]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
-// DELETE /dish/:id — 删除菜品
-app.delete('/dish/:id', (req, res) => {
+// DELETE /dish/:id — 删除菜品（仅管理员）
+app.delete('/dish/:id', requireAdmin, (req, res) => {
   try {
     const info = db.prepare('DELETE FROM dishes WHERE id=? AND is_custom=0').run(req.params.id)
     if (info.changes === 0) { res.status(404).json({ error: '菜品不存在' }); return }

@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\Web.config||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Web.config||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html||{40D31677-CBC0-4297-A9EF-89D907823A98}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html||{40D31677-CBC0-4297-A9EF-89D907823A98}"
     }
@@ -63,12 +67,25 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "Web.config",
+              "DocumentMoniker": "C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\web.config",
+              "RelativeDocumentMoniker": "web.config",
+              "ToolTip": "C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\web.config",
+              "RelativeToolTip": "web.config",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAPAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000601|",
+              "WhenOpened": "2026-05-20T02:30:45.132Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html",
               "DocumentMoniker": "C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html",
               "RelativeDocumentMoniker": "\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html",
               "ToolTip": "C:\\Users\\12434\\source\\repos\\Ethen-Ge-Personal-Home\\\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html",
               "RelativeToolTip": "\u68C0\u67E5\u73AF\u5883\u53D8\u91CF.html",
-              "ViewState": "AgIAABoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAABoAAAAAAAAAAAAAADoAAAAhAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
               "WhenOpened": "2026-05-07T02:04:46.008Z",
               "EditorCaption": ""
