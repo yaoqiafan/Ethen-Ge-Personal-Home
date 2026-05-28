@@ -477,7 +477,15 @@ wss.on('connection', (ws, req) => {
   wsRooms.get(sid)!.add(ws)
   console.log(`[ws] +连接 sid=${sid} 在线=${wsRooms.get(sid)!.size}`)
 
+  // Keepalive：每 20s ping 一次，防止 Cloudflare/IIS 超时关闭空闲连接
+  const pingTimer = setInterval(() => {
+    if (ws.readyState === WS.OPEN) ws.ping()
+    else clearInterval(pingTimer)
+  }, 20_000)
+
+  ws.on('pong', () => {}) // 收到 pong 说明链路存活
   ws.on('close', () => {
+    clearInterval(pingTimer)
     wsRooms.get(sid)?.delete(ws)
     if (wsRooms.get(sid)?.size === 0) wsRooms.delete(sid)
     console.log(`[ws] -断开 sid=${sid}`)
