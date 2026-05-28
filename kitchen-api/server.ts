@@ -131,6 +131,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sessions_status      ON sessions(status);
   CREATE INDEX IF NOT EXISTS idx_cart_session         ON cart_items(session_id);
   CREATE INDEX IF NOT EXISTS idx_participants_session ON participants(session_id);
+  CREATE TABLE IF NOT EXISTS messages (
+    id         TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    device_id  TEXT NOT NULL,
+    nick_name  TEXT NOT NULL DEFAULT '',
+    avatar_url TEXT NOT NULL DEFAULT '',
+    type       TEXT NOT NULL DEFAULT 'text',
+    content    TEXT NOT NULL DEFAULT '',
+    media_url  TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at);
 `)
 
 // ── 预编译高频 SQL ────────────────────────────────────────────────────────────
@@ -208,6 +220,15 @@ const stmts = {
     'INSERT OR IGNORE INTO participants (session_id,device_id,avatar_url,nick_name,updated_at) VALUES (?,?,?,?,?)'
   ),
   deleteParticipantsBySession: db.prepare('DELETE FROM participants WHERE session_id=?'),
+
+  // ── 消息 ────────────────────────────────────────────────────────────────────
+  insertMessage: db.prepare(
+    'INSERT INTO messages (id,session_id,device_id,nick_name,avatar_url,type,content,media_url,created_at) VALUES (?,?,?,?,?,?,?,?,?)'
+  ),
+  getMessages: db.prepare(
+    'SELECT * FROM messages WHERE session_id=? ORDER BY created_at ASC LIMIT 200'
+  ),
+  deleteMessagesBySession: db.prepare('DELETE FROM messages WHERE session_id=?'),
 
   // ── 其他 ────────────────────────────────────────────────────────────────────
   updateSessionTime: db.prepare('UPDATE sessions SET updated_at=? WHERE id=?'),
@@ -493,19 +514,22 @@ wss.on('connection', (ws, req) => {
   ws.on('error', () => {}) // 防止未捕获异常崩溃进程
 })
 
-/** 写入购物车后广播最新状态给同一工单的所有在线设备 */
-function broadcastCart(sid: string): void {
+/** 向同一工单的所有在线设备广播任意消息 */
+function broadcastMsg(sid: string, payload: object): void {
   const sockets = wsRooms.get(sid)
   if (!sockets?.size) return
+  const msg = JSON.stringify(payload)
+  sockets.forEach(ws => { if (ws.readyState === WS.OPEN) try { ws.send(msg) } catch {} })
+}
+
+/** 写入购物车后广播最新购物车状态 */
+function broadcastCart(sid: string): void {
   try {
     const items = buildSessionItems(sid)
     const { infos } = buildParticipants(sid)
     const participantCount = (stmts.countParticipants.get(sid) as any)?.c ?? 0
-    const msg = JSON.stringify({ type: 'cart', items, participantCount, participantInfos: infos })
-    sockets.forEach(ws => {
-      if (ws.readyState === WS.OPEN) try { ws.send(msg) } catch {}
-    })
-    console.log(`[ws] 广播 sid=${sid} 设备=${sockets.size} items=${items.length}`)
+    broadcastMsg(sid, { type: 'cart', items, participantCount, participantInfos: infos })
+    console.log(`[ws] 广播购物车 sid=${sid} 设备=${wsRooms.get(sid)?.size ?? 0} items=${items.length}`)
   } catch (e) { console.warn('[ws] broadcastCart 失败:', e) }
 }
 
@@ -593,6 +617,7 @@ app.delete('/session/:sid', requireAdmin, (req, res) => {
       stmts.deleteSession.run(req.params.sid)
       stmts.deleteParticipantsBySession.run(req.params.sid)
       stmts.deleteCartBySession.run(req.params.sid)
+      stmts.deleteMessagesBySession.run(req.params.sid)
     })()
     console.log(`[session] 删除 sid=${req.params.sid}`)
     res.json({ ok: true })
@@ -810,6 +835,60 @@ app.delete('/dish/:id', requireAdmin, (req, res) => {
     })()
     res.json({ ok: true })
   } catch (e) { console.error('[DELETE dish]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// ── 聊天 ──────────────────────────────────────────────────────────────────────
+
+// GET /session/:sid/messages — 获取聊天历史（最多 200 条）
+app.get('/session/:sid/messages', (req, res) => {
+  try {
+    const rows = stmts.getMessages.all(req.params.sid) as any[]
+    res.json(rows.map(r => ({
+      id:        r.id,
+      sessionId: r.session_id,
+      deviceId:  r.device_id,
+      nickName:  r.nick_name,
+      avatarUrl: r.avatar_url,
+      type:      r.type,
+      content:   r.content,
+      mediaUrl:  r.media_url,
+      createdAt: r.created_at,
+    })))
+  } catch (e) { console.error('[GET messages]', e); res.status(500).json({ error: '服务器错误' }) }
+})
+
+// POST /session/:sid/message — 发送消息（文字/图片/语音）
+app.post('/session/:sid/message', async (req, res) => {
+  try {
+    const { deviceId, nickName, avatarUrl, type, content, base64, mimeType } = req.body
+    const sid = req.params.sid
+    if (!deviceId || !type) { res.status(400).json({ error: '缺少参数' }); return }
+    const row = stmts.getSession.get(sid) as any
+    if (!row) { res.status(404).json({ error: '工单不存在' }); return }
+    if (row.status === 'closed') { res.status(409).json({ error: '工单已结束' }); return }
+
+    let mediaUrl = ''
+    if (base64 && (type === 'image' || type === 'voice')) {
+      if (!SECRET_ID || !BUCKET) { res.status(503).json({ error: 'COS 未配置' }); return }
+      const ext = mimeType === 'audio/mp3' ? 'mp3' : (mimeType === 'image/png' ? 'png' : 'jpg')
+      const key = `kitchen/messages/${Date.now()}_${deviceId}.${ext}`
+      const buf = Buffer.from(base64 as string, 'base64')
+      if (buf.length > 10_000_000) { res.status(413).json({ error: '文件过大（最大 10MB）' }); return }
+      mediaUrl = await cosUploadImage(key, buf, mimeType || 'image/jpeg')
+      console.log(`[message] COS 上传 ${type} sid=${sid} size=${buf.length}`)
+    }
+
+    const id        = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const createdAt = new Date().toISOString()
+    stmts.insertMessage.run(id, sid, deviceId, nickName || '', avatarUrl || '', type, content || '', mediaUrl, createdAt)
+
+    const message = { id, sessionId: sid, deviceId, nickName: nickName || '', avatarUrl: avatarUrl || '', type, content: content || '', mediaUrl, createdAt }
+    broadcastMsg(sid, { type: 'chat', message })
+    res.json({ ok: true, message })
+  } catch (e: any) {
+    console.error('[POST message]', e)
+    res.status(500).json({ error: e.message || '服务器错误' })
+  }
 })
 
 // ── 启动 ──────────────────────────────────────────────────────────────────────
