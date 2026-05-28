@@ -837,6 +837,14 @@ app.delete('/dish/:id', requireAdmin, (req, res) => {
   } catch (e) { console.error('[DELETE dish]', e); res.status(500).json({ error: '服务器错误' }) }
 })
 
+// GET /admin/check — 无需鉴权，仅返回该设备是否具有管理员身份
+// 客户端用于 lock 页"管理入口"的权限判断（知道身份≠拥有权限，实际操作仍需 X-Device-Id 头）
+app.get('/admin/check', (req, res) => {
+  const deviceId = req.query.deviceId as string | undefined
+  const isAdmin  = !!ADMIN_DEVICE_ID && !!deviceId && deviceId === ADMIN_DEVICE_ID
+  res.json({ isAdmin })
+})
+
 // ── 聊天 ──────────────────────────────────────────────────────────────────────
 
 // GET /session/:sid/messages — 获取聊天历史（最多 200 条）
